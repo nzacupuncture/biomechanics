@@ -65,7 +65,11 @@ tests/               node:test suite
 2. **Cuff wrapping is side-locked.** A frictionless sphere wrap takes the shorter way round, so in
    end-range rotation subscapularis flipped behind the head. Each wrapped line has a humerus-fixed
    `side` vector (subscapularis anterior, infraspinatus/teres minor posterior, supraspinatus superior,
-   middle deltoid lateral) and must stay on that side.
+   middle deltoid lateral) and must stay on that side. Since Nov 2026 this is done with a **wall**
+   (`sideWrap` in kinematics.js): a humerus-fixed half-plane from a wrap axis through the GH centre,
+   on the side opposite `side`. The tendon takes the shortest path round the head that doesn't pass
+   through the wall (held at the wall's edge, or the long way round, when the short way would). This
+   replaced a "pick the arc whose midpoint is nearer `side`" rule whose length jumped by up to 6 cm.
 3. **Anterior and posterior deltoid use a "tubercle" obstacle (`wrap: 'tub'`),** a humerus-fixed point
    the fibre drapes over only when it protrudes beyond the straight line. Sphere wrapping was unstable
    for these two because origin and insertion sit almost opposite each other across the head.
@@ -92,13 +96,23 @@ abductor around 60° of abduction. Ranges are consistent with published cadaver 
 
 ## Known issues (in priority order)
 
-1. **Route switching in the wrap.** At a few poses the side-locked wrap switches route and the
-   length jumps (upper infraspinatus/teres minor near 130–145° flexion, teres minor in scaption
-   near 135°, posterior deltoid at 90° abduction with ~65° external rotation). The guard in decision 7
-   hides the absurd values but curves still step by up to ~3 cm per 5°. The `todo` test
-   "no moment-arm jump larger than 1 cm per 5°" is the target. A proper fix is a continuous wrapping
-   method such as the obstacle-set method (Garner & Pandy 2000) or cylinder/ellipsoid wrapping as in
-   OpenSim, rather than more special cases.
+1. **Moment-arm steps (partly fixed Nov 2026).** The `todo` test "no moment-arm jump larger than
+   1 cm per 5°" is the target. The wall method (decision 2) removed every length jump for the cuff
+   and middle deltoid; key-pose values are unchanged. Still failing (9 places before, 7 now):
+   - **Anterior/posterior deltoid tubercle** (decision 3, untouched): anterior deltoid at ~115°
+     abduction; posterior deltoid at 90° abduction with ~10° and ~65° ER. The point snaps on and
+     off while the fibre is still 1–2 cm from it, so the length jumps ~1 cm.
+   - **Middle deltoid, 15–25° flexion**: acromion almost directly opposite the insertion, so the
+     shortest path slides from posterolateral to anterolateral over the head (smooth but steep).
+   - **Middle deltoid, 90° abduction ~70–75° IR** and **teres minor, 90° abduction ~80° IR**: two
+     equally short routes swap over (no jump in length, sharp change in moment arm).
+   Tried and rejected (Nov 2026), so don't repeat them blindly: a fixed-axis cylinder for the cuff
+   (at ~90° elevation the scapular origin lies on the humeral shaft axis, so the cylinder breaks);
+   cylinders for the deltoid (same problem with the acromion); a deltoid "ridge" (a line through
+   the tubercle that the fibre drapes over: smooth, but it changed the deltoid's resting moment
+   arms, e.g. anterior deltoid abduction +0.6 → −2.1 cm, or broke the posterior deltoid extension
+   test depending on the ridge's direction; needs Nazan's view on the deltoid's true behaviour);
+   a finite wall (lets the cuff slip to the wrong side). The guard in decision 7 is still in place.
 2. **Fixed scapula** (see roadmap step 3). Consequences: end-range positions are exaggerated, and in
    serve cocking (90° abduction, 85° ER) subscapularis shows a small external-rotation moment arm and
    barely lengthens, which is clinically wrong.
@@ -110,7 +124,8 @@ abductor around 60° of abduction. Ranges are consistent with published cadaver 
 
 1. **Deploy.** Create a GitHub repo, push, enable Pages (Settings → Pages → Source: GitHub Actions).
    `.github/workflows/pages.yml` runs the tests and publishes `app/`.
-2. **Fix Known issue 1** until the `todo` test passes; then make it a normal test.
+2. **Fix Known issue 1** until the `todo` test passes; then make it a normal test. (Cuff done; the
+   deltoid and two end-range swaps remain.)
 3. **Scapulohumeral rhythm.** Move scapula and clavicle with elevation (start with a simple
    regression such as ~1 : 2 scapular upward rotation : GH elevation after the first ~30°, plus
    posterior tilt and external rotation; Ludewig et al. 2009 gives values). Scapular origins move
