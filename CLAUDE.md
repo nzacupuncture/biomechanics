@@ -43,7 +43,8 @@ app/                 the website (this folder is what GitHub Pages publishes)
                      moment arms (pure maths, tested)
   js/main.js         rendering and UI only (three.js r128 as a global from cdnjs): sliders, presets,
                      dragging the arm, Swimmer view
-  data/shoulder.json bones (quantised meshes) + muscle lines, produced by the pipeline
+  data/shoulder.json bones (quantised meshes) + muscle lines, produced by the pipeline; `skel` = whole-body
+                     reference skeleton (display only, decimated), `hand` = right hand (moves with forearm)
 pipeline/            Python + Blender scripts that turn Z-Anatomy into app data (.cache/ and .venv/ are git-ignored)
 tests/               node:test suite
 ```

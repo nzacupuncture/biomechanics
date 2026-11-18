@@ -31,9 +31,26 @@ JOINTS = {
         extra=["Inferior angle of scapula.i", "Superior angle of scapula.i", "Acromion.i", "Spine of scapula.i",
                "Coracoid process.i", "Medial border of scapula.i", "Nuchal ligament"],
         # decimation ratio for the web copy (ribs etc. default to 0.12, others 0.35)
-        decimate={"Scapula.r": 0.22, "Humerus.r": 0.6, "Clavicle.r": 0.7, "Radius.r": 0.35, "Ulna.r": 0.35, "Occipital bone": 0.06},
+        decimate={"Scapula.r": 0.22, "Humerus.r": 0.6, "Clavicle.r": 0.7, "Radius.r": 0.35, "Ulna.r": 0.35, "Occipital bone": 0.005},
     ),
 }
+
+# Whole-body reference skeleton (display only, heavily decimated): every bone whose name matches.
+# Right hand bones are packed with the forearm in 03 so they move with the elbow.
+# Head: outer skull bones only, simplified hard (a reference shape; small inner bones left out).
+HEAD = ("Frontal bone", "Parietal bone", "Temporal bone", "Maxilla", "Zygomatic bone", "Mandible")
+CONTEXT_RE = (r"^(Frontal bone|Parietal bone|Temporal bone|Maxilla|Zygomatic bone|"
+              r"Mandible|Vertebra L\d|Sacrum|Coccyx|"
+              r"(First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth|Tenth|Eleventh|Twelfth) rib\.l|Costal cartilage of .* rib\.l|"
+              r"Clavicle\.l|Scapula\.l|Humerus\.l|Radius\.l|Ulna\.l|Hip bone|Femur|Patella\.|Tibia|Fibula\.|Calcaneus|Talus|"
+              r"Navicular bone|Cuboid bone|(Medial|Intermediate|Lateral) cuneiform bone|.* metatarsal bone|.* metacarpal bone|"
+              r"(Distal|Middle|Proximal) phalanx of .*|Scaphoid bone|Lunate bone|Triquetr.*|Pisiform bone|Trapezium|Trapezoid|"
+              r"Capitate bone|Hamate bone)(\.[lr])?$")
+
+def context_names():
+    import re
+    with bpy.data.libraries.load(BLEND) as (src, dst):
+        return sorted(n for n in src.objects if re.match(CONTEXT_RE, n))
 
 def load(names):
     with bpy.data.libraries.load(BLEND) as (src, dst):
@@ -72,4 +89,13 @@ for o in objs:
         o.modifiers.new("dec", "DECIMATE").ratio = r
 web = grab([o for o in objs if o.name in cfg["bones"]])
 pickle.dump(web, open(f".cache/{joint}_web.pkl", "wb"))
+# reference skeleton: loaded, decimated hard, saved separately (web resolution only)
+cn = [n for n in context_names() if n not in names]
+cobjs = [o for o in load(cn) if o.type == "MESH"]
+for o in cobjs:
+    small = any(k in o.name for k in ("phalanx", "metacarpal", "metatarsal", "bone.", "Patella", "Coccyx", "Vertebra L"))
+    o.modifiers.new("dec", "DECIMATE").ratio = 0.005 if o.name.startswith(HEAD) else 0.2 if small else 0.05
+ctx = grab(cobjs)
+pickle.dump(ctx, open(f".cache/{joint}_context.pkl", "wb"))
+print(f"reference skeleton: {len(ctx)} bones")
 print(f"{joint}: {len(full)} objects extracted, {len(web)} bones decimated")

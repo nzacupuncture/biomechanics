@@ -224,7 +224,14 @@ def pack(keys, tf, colour=True):
                 c=base64.b64encode(col.tobytes()).decode(), big=big)
 
 static = [k for k in B if k not in ("Humerus.r", "Radius.r", "Ulna.r", "Scapula.r", "Clavicle.r")]
+# whole-body reference skeleton (02 writes it separately): right hand moves with the forearm
+CTX = {k: (cv(v), t) for k, (v, t) in pickle.load(open(".cache/shoulder_context.pkl", "rb")).items()}
+B.update(CTX)
+HAND = ("Scaphoid", "Lunate", "Triquetr", "Pisiform", "Trapezium", "Trapezoid", "Capitate", "Hamate", "metacarpal", "of hand")
+hand_r = [k for k in CTX if k.endswith(".r") and any(h in k for h in HAND)]
+body_ref = [k for k in CTX if k not in hand_r]
 out = dict(scap=pack(["Scapula.r"], fix), clav=pack(["Clavicle.r"], fix), thorax=pack(static, fix), hum=pack(["Humerus.r"], q0),
+           skel=pack(body_ref, fix, colour=False), hand=pack(hand_r, flex, colour=False),
            fore=pack(fore, flex, colour=False), lines=L, R=round(float(r), 2), girdle=girdle,
            ep=r2(ep), me=r2(me), le=r2(le), wrist=r2(wrist))
 json.dump(out, open(OUT, "w"))

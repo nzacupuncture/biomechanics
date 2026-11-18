@@ -65,16 +65,18 @@ body.add(scapM, clavM, thorax);
 // place a rigid bone mesh so that point P goes to pivotNew + q·(P - pivot)
 const placeBone = (m, q, pivot, pivotNew) => { m.quaternion.copy(toQ(q)); m.position.copy(T3(pivotNew).sub(T3(qRot(q, pivot)))); };
 // Forearm hinges about the elbow axis: foreG pivots at the elbow centre.
-const humM = mesh(DATA.hum), foreM = mesh(DATA.fore), foreG = new THREE.Group();
-foreG.position.copy(T3(EL.ep)); foreM.position.copy(T3(EL.ep).negate()); foreG.add(foreM);
+const humM = mesh(DATA.hum), foreM = mesh(DATA.fore), handM = mesh(DATA.hand), foreG = new THREE.Group();
+foreG.position.copy(T3(EL.ep)); foreM.position.copy(T3(EL.ep).negate()); handM.position.copy(T3(EL.ep).negate()); foreG.add(foreM, handM);
+// whole-body reference skeleton (display only): faint, fixed to the trunk
+const skelM = mesh(DATA.skel, 0.4); body.add(skelM);
 const arm = new THREE.Group(); arm.add(humM, foreG); body.add(arm);
 const ctr = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), new THREE.MeshBasicMaterial({ color: 0x222222 })); body.add(ctr);
 const tubes = new THREE.Group(); body.add(tubes);
 // Swimmer view: roll axis along the trunk's centre line; water surface level with the back.
 thorax.geometry.computeBoundingBox();
 const tb = thorax.geometry.boundingBox, PIVOT = [(tb.min.x + tb.max.x) / 2, 0, (tb.min.z + tb.max.z) / 2], WATER = PIVOT[2] - tb.min.z;
-const water = new THREE.Mesh(new THREE.PlaneGeometry(220, 140), new THREE.MeshBasicMaterial({ color: 0x3d8fd1, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
-water.rotation.x = -Math.PI / 2; water.position.set(-10, WATER, 10); water.visible = false; scene.add(water);
+const water = new THREE.Mesh(new THREE.PlaneGeometry(380, 170), new THREE.MeshBasicMaterial({ color: 0x3d8fd1, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+water.rotation.x = -Math.PI / 2; water.position.set(-60, WATER, 10); water.visible = false; scene.add(water);
 const maLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0x111111, dashSize: 0.5, gapSize: 0.35, depthTest: false }));
 maLine.renderOrder = 5; body.add(maLine);
 const footG = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), new THREE.MeshBasicMaterial({ color: 0x111111, depthTest: false }));
@@ -127,14 +129,14 @@ cv.addEventListener('pointermove', e => {
   ptr.set(e.pointerId, [e.clientX, e.clientY]); moved += Math.abs(dx) + Math.abs(dy);
   if (ptr.size === 2) {
     const a = [...ptr.values()], d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]);
-    if (pinch0) { dist = Math.min(220, Math.max(30, dist * pinch0 / d)); pinch0 = d; place(); }
+    if (pinch0) { dist = Math.min(420, Math.max(30, dist * pinch0 / d)); pinch0 = d; place(); }
     return;
   }
   az -= dx * 0.008; el = Math.max(-1.3, Math.min(1.3, el + dy * 0.008)); place();
 });
 cv.addEventListener('pointerup', e => { ptr.delete(e.pointerId); if (ptr.size < 2) pinch0 = 0; if (moved < 6 && down && ptr.size === 0) pick(e); if (!ptr.size) grab = null; });
 cv.addEventListener('pointercancel', e => { ptr.delete(e.pointerId); grab = null; });
-cv.addEventListener('wheel', e => { e.preventDefault(); dist = Math.min(220, Math.max(30, dist * Math.exp(e.deltaY * 0.001))); place(); }, { passive: false });
+cv.addEventListener('wheel', e => { e.preventDefault(); dist = Math.min(420, Math.max(30, dist * Math.exp(e.deltaY * 0.001))); place(); }, { passive: false });
 
 // ---------- picking and drawing your own lines ----------
 const ray = new THREE.Raycaster();
@@ -334,6 +336,10 @@ function setSwim(on) {
   place(); update();
 }
 $('swimBtn').onclick = () => setSwim(!swim);
+$('skelBtn').onclick = () => {
+  skelM.visible = !skelM.visible;
+  $('skelBtn').setAttribute('aria-pressed', skelM.visible); $('skelBtn').textContent = skelM.visible ? 'Whole body shown' : 'Whole body hidden'; render();
+};
 $('chips').innerHTML = GROUPS.map(g => `<button class="chip" data-g="${g[0]}" aria-pressed="true"><span class="sw" style="background:var(--${g[0]})"></span>${g[1]}</button>`).join('');
 $('chips').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; shown[b.dataset.g] = !shown[b.dataset.g]; b.setAttribute('aria-pressed', shown[b.dataset.g]); update(); });
 $('drawBtn').onclick = () => setDraw(!drawMode);
