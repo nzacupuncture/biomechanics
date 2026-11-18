@@ -16,15 +16,22 @@ JOINTS = {
         bones=["Humerus.r", "Scapula.r", "Clavicle.r", "Radius.r", "Ulna.r", "Manubrium of sternum", "Body of sternum", "Xiphoid process"]
         + [f"{o} rib.r" for o in ORD]
         + [f"Costal cartilage of {o.lower()} rib.r" for o in ORD[:10]]
-        + [f"Vertebra T{i}" for i in range(1, 13)],
+        + [f"Vertebra T{i}" for i in range(1, 13)]
+        + ["Atlas (C1)", "Axis (C2)"] + [f"Vertebra C{i}" for i in range(3, 8)] + ["Occipital bone"],
         muscles=["Teres minor muscle", "Teres major muscle", "Supraspinatus muscle", "Subscapularis muscle", "Infraspinatus muscle",
                  "Latissimus dorsi muscle", "Scapular spinal part of deltoid muscle", "Acromial part of deltoid muscle",
                  "Clavicular part of deltoid muscle", "Clavicular head of pectoralis major muscle",
                  "Sternocostal head of pectoralis major muscle", "Coracobrachialis muscle", "Short head of biceps brachii",
                  "Long head of biceps brachii", "Long head of triceps brachii", "Deltoid muscle", "Pectoralis major muscle",
-                 "Biceps brachii muscle", "Triceps brachii muscle"],
+                 "Biceps brachii muscle", "Triceps brachii muscle",
+                 # scapular muscles (thorax/neck to scapula or clavicle)
+                 "Descending part of trapezius muscle", "Transverse part of trapezius muscle", "Ascending part of trapezius muscle",
+                 "Rhomboid major muscle", "Rhomboid minor muscle", "Levator scapulae", "Serratus anterior muscle", "Pectoralis minor muscle"],
+        # full-resolution only: landmark leader lines (2 vertices; one end sits on the bone) and ligaments
+        extra=["Inferior angle of scapula.i", "Superior angle of scapula.i", "Acromion.i", "Spine of scapula.i",
+               "Coracoid process.i", "Medial border of scapula.i", "Nuchal ligament"],
         # decimation ratio for the web copy (ribs etc. default to 0.12, others 0.35)
-        decimate={"Scapula.r": 0.22, "Humerus.r": 0.6, "Clavicle.r": 0.7, "Radius.r": 0.35, "Ulna.r": 0.35},
+        decimate={"Scapula.r": 0.22, "Humerus.r": 0.6, "Clavicle.r": 0.7, "Radius.r": 0.35, "Ulna.r": 0.35, "Occipital bone": 0.06},
     ),
 }
 
@@ -53,7 +60,7 @@ def grab(objs):
 
 joint = sys.argv[1] if len(sys.argv) > 1 else "shoulder"
 cfg = JOINTS[joint]
-names = cfg["bones"] + [m + s for m in cfg["muscles"] for s in (".r", ".or", ".er")]
+names = cfg["bones"] + [m + s for m in cfg["muscles"] for s in (".r", ".or", ".er")] + cfg.get("extra", [])
 objs = load(names)
 full = grab(objs)
 missing = [n for n in cfg["bones"] if n not in full]

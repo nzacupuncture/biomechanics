@@ -6,7 +6,7 @@ Healthcare in London and works with swimmers and tennis players. She uses it for
 reasoning, teaching associates and patient education. Write UI text in British English and in
 plain clinical language (she thinks in "abducts, externally rotates", not "positive torque about z").
 
-The shoulder is done (pilot). The roadmap below adds scapular motion and more joints.
+The shoulder is done: humerus, elbow and shoulder girdle (scapula and clavicle). The roadmap adds more joints.
 
 ## Hard rules
 
@@ -28,6 +28,7 @@ The shoulder is done (pilot). The roadmap below adds scapular motion and more jo
 npm test                      # anatomy and continuity tests (Node 18+, no dependencies)
 npm run serve                 # http://localhost:8000  (app must be served; file:// can't fetch JSON)
 cd pipeline && ./setup.sh     # one-off: downloads Z-Anatomy, makes a Python 3.11 env with Blender's bpy
+                              # (needs uv: `brew install uv`; set up on Nazan's Mac Nov 2026)
 cd pipeline && .venv/bin/python 01_find_objects.py "deltoid|scapula"   # look up object names
 cd pipeline && .venv/bin/python 02_extract_meshes.py shoulder          # extract meshes
 cd pipeline && .venv/bin/python 03_build_shoulder.py                   # writes app/data/shoulder.json
@@ -70,8 +71,19 @@ tests/               node:test suite
   Slider ranges are the limits (plane −30…130°, so pure extension behind the trunk isn't reachable).
 - **Moment arm** = −dL/dθ in cm. Positive = the muscle drives elevation, horizontal adduction
   (rotation about the vertical axis, `h`) or external rotation. Horizontal values are hidden below 15° elevation.
-- **The scapula is fixed**, so slider angles are effectively glenohumeral angles. Say so in the UI.
-- Right side only. A left side would be a mirror (x → −x), not new data.
+- **Shoulder girdle** (`pose.girdle = { geo, ur, pt, ir, ce, cr }`, `geo` = `data.girdle`): scapular
+  upward rotation, posterior tilt, internal rotation (ISB Y-X-Z about the AC joint; scapular axes
+  from ISB landmarks AI, TS, AA taken from the mesh) and clavicular elevation and retraction (about
+  the SC joint, carrying the AC joint). All zero or no `girdle` = as built (the pilot). Lines carry
+  `ob` (origin bone: scap / clav / thorax). The app has three modes: **moves with the arm** (default:
+  `rhythm(e)`, linear Ludewig 2009 rates; shoulder sliders are then the arm relative to the trunk),
+  **fixed** (sliders = glenohumeral angles) and **set by hand**. Shoulder moment arms are always about
+  the GH joint (scapula held where it is while the humerus is perturbed).
+- **Scapular muscles** (`g: 'scap'`, `ib` = insertion bone): trapezius upper/middle/lower, rhomboid
+  minor/major, levator scapulae, serratus anterior upper/lower (wrap round the thorax as an upright
+  cylinder, `wrap: 'thorax'`), pec minor. Moment arms: `urg` = upward rotation of the whole girdle
+  in the rhythm's proportions (what "upward rotator" means clinically), `pt`, `ir` (+ = winging),
+  `ce`, `cr`.
 
 ## Decisions already made, and why (don't undo without reason)
 
@@ -85,12 +97,17 @@ tests/               node:test suite
    on the side opposite `side`. The tendon takes the shortest path round the head that doesn't pass
    through the wall (held at the wall's edge, or the long way round, when the short way would). This
    replaced a "pick the arc whose midpoint is nearer `side`" rule whose length jumped by up to 6 cm.
-3. **Anterior and posterior deltoid use a "tubercle" obstacle (`wrap: 'tub'`),** a humerus-fixed point
-   the fibre drapes over only when it protrudes beyond the straight line. Sphere wrapping was unstable
-   for these two because origin and insertion sit almost opposite each other across the head.
-4. **Origins inside the wrap sphere** (acromion) shrink the sphere to 0.97 × origin distance, otherwise
-   the middle deltoid was drawn straight through the head.
-5. **Z-Anatomy patch labels are unreliable.** `.or` / `.er` don't always mean origin / insertion
+3. **Deltoid drapes over ridges** (`wrap: 'tub'` + `ridge`, Nov 2026): a humerus-fixed line through the
+   tubercle point that the fibre drapes over like a rope over a bar; it lifts off exactly when the
+   bend straightens, so nothing jumps. Ridge directions were chosen by a search over directions for
+   smooth moment arms that keep the anatomy tests and published abduction profiles. Middle deltoid:
+   ridge along the shaft 4 cm lateral (replaced its sphere wrap, which slid round the head in early
+   flexion). The pilot's single tubercle point switched on and off and made lengths jump ~1 cm.
+4. **Origins inside the wrap sphere** shrink the sphere to 0.97 × origin distance (still used by the cuff).
+5. **Z-Anatomy labels are unreliable.** The trapezius "Descending part" mesh is the LOWER part and
+   "Ascending part" the upper (named by position here); its landmark labels (`.i`) can't be used
+   (stored relative to parents that aren't extracted).
+   **Patch labels too:** `.or` / `.er` don't always mean origin / insertion
    (the sternocostal pec major `.er` patch is its origin, on the sternum, and covers only the lower
    part). Always classify by which bone a patch touches; take origins from muscle-to-bone contact
    when a patch is missing or partial.
@@ -106,49 +123,44 @@ Middle deltoid abducts through 0–120° (~1.6 cm at rest rising to ~2.9 cm). Su
 subscapularis internally rotates, at rest, 90° abduction and 90° flexion. Lat and teres major adduct
 and internally rotate. Pec major horizontally adducts at 90° abduction. Posterior deltoid
 horizontally abducts at 90° abduction, extends in flexion up to 90°, and switches from adductor to
-abductor around 60° of abduction. Ranges are consistent with published cadaver and modelling data
+abductor around 60° of abduction. Posterior deltoid adducts at rest and turns abductor around 60°. Scapular muscles at rest: upper
+and lower trapezius and lower serratus upwardly rotate; rhomboids, levator and pec minor downwardly
+rotate; serratus holds the medial border on the ribs; rhythm puts about two thirds of 120° at the GH
+joint. Ranges are consistent with published cadaver and modelling data
 (e.g. Ackland et al. 2008; Kuechle et al. 1997). Treat values as teaching-grade, not research-grade.
 
 ## Known issues (in priority order)
 
-1. **Moment-arm steps (partly fixed Nov 2026).** The `todo` test "no moment-arm jump larger than
-   1 cm per 5°" is the target. The wall method (decision 2) removed every length jump for the cuff
-   and middle deltoid; key-pose values are unchanged. Still failing (9 places before, 7 now):
-   - **Anterior/posterior deltoid tubercle** (decision 3, untouched): anterior deltoid at ~115°
-     abduction; posterior deltoid at 90° abduction with ~10° and ~65° ER. The point snaps on and
-     off while the fibre is still 1–2 cm from it, so the length jumps ~1 cm.
-   - **Middle deltoid, 15–25° flexion**: acromion almost directly opposite the insertion, so the
-     shortest path slides from posterolateral to anterolateral over the head (smooth but steep).
-   - **Middle deltoid, 90° abduction ~70–75° IR** and **teres minor, 90° abduction ~80° IR**: two
-     equally short routes swap over (no jump in length, sharp change in moment arm).
-   Tried and rejected (Nov 2026), so don't repeat them blindly: a fixed-axis cylinder for the cuff
-   (at ~90° elevation the scapular origin lies on the humeral shaft axis, so the cylinder breaks);
-   cylinders for the deltoid (same problem with the acromion); a deltoid "ridge" (a line through
-   the tubercle that the fibre drapes over: smooth, but it changed the deltoid's resting moment
-   arms, e.g. anterior deltoid abduction +0.6 → −2.1 cm, or broke the posterior deltoid extension
-   test depending on the ridge's direction; needs Nazan's view on the deltoid's true behaviour);
-   a finite wall (lets the cuff slip to the wrong side). The guard in decision 7 is still in place.
-2. **Fixed scapula** (see roadmap step 3). The freestyle recovery presets show it clearly: to put the
-   hand where each phase is described, the fit needs ~165° elevation at entry and the −30° plane
-   limit at mid-recovery, because the shoulder alone does what scapular retraction and upward
-   rotation do in a real swimmer. Consequences: end-range positions are exaggerated, and in
-   serve cocking (90° abduction, 85° ER) subscapularis shows a small external-rotation moment arm and
-   barely lengthens, which is clinically wrong.
-3. **Anterior deltoid** flexion moment arm turns slightly negative above ~100° flexion; probably too early.
-4. **One centroid line per muscle part.** Broad muscles (pec major, lat, deltoid) are their average
-   fibre. More fibres per muscle would improve this.
+1. **Moment-arm steps (mostly fixed Nov 2026).** Wall-based cuff wrapping (decision 2) and deltoid
+   ridges (decision 3) removed every length jump. Left: teres minor at 90° abduction with ~80° IR
+   (fixed scapula; two equally short routes over/under the head swap), and with the scapula moving a
+   few end-range IR spots (infraspinatus lower ~80° IR, teres minor ~30°) and subscapularis lower
+   at ~70° flexion. Both `todo` tests (fixed and moving scapula) are the target; guard tests at 3 cm
+   must always pass. Restricting teres minor to the lower route fixes the fixed-scapula case but adds
+   a 4 cm step at 90° abduction/50° IR with the scapula moving, so it was not kept.
+   Tried and rejected: fixed-axis cylinders for cuff or deltoid (origins line up with the axis), a
+   finite wall (cuff slips to the wrong side).
+2. **Scapular upward rotation at high elevation.** About a single AC-joint axis, the lower serratus
+   and lower trapezius turn into downward rotators above ~60–90° of arm elevation, while clinically
+   they are the main upward-rotation force couple there. Causes: the real rotation axis migrates
+   from near the root of the spine to the AC joint (Inman; Bagg & Forrest 1988), and each muscle is
+   one centroid line. Fix ideas: a migrating UR axis, several serratus/trapezius fibres.
+3. **No scapulothoracic contact.** The rhythm is kinematic (Ludewig rates); the scapula drifts up to
+   ~6–8 cm off the ribcage at full elevation. Contact constraints were tried (elliptical thorax,
+   solving IR+retraction, IR+tilt or IR+elevation): they hold contact only with unphysiological angles
+   (e.g. 57–71° retraction), so they are not used.
+4. **Anterior deltoid in flexion** stays near zero (−0.1 to +0.3 cm) above ~90° with the scapula
+   moving (was −1 cm fixed); published data keep it a modest flexor.
+5. **One centroid line per muscle part.** Broad muscles are their average fibre.
+6. **Upper trapezius** mesh stops near C7 and meets the acromion, not the clavicle: its line runs
+   from the midline at C7 to the acromion.
 
 ## Roadmap
 
 1. **Deploy.** Create a GitHub repo, push, enable Pages (Settings → Pages → Source: GitHub Actions).
    `.github/workflows/pages.yml` runs the tests and publishes `app/`.
-2. **Fix Known issue 1** until the `todo` test passes; then make it a normal test. (Cuff done; the
-   deltoid and two end-range swaps remain.)
-3. **Scapulohumeral rhythm.** Move scapula and clavicle with elevation (start with a simple
-   regression such as ~1 : 2 scapular upward rotation : GH elevation after the first ~30°, plus
-   posterior tilt and external rotation; Ludewig et al. 2009 gives values). Scapular origins move
-   with it. The slider then shows thoracohumeral elevation, with the GH angle displayed alongside.
-   Add a toggle so the fixed-scapula view stays available. Update tests and Known issue 2.
+2. **Fix Known issue 1** until the `todo` tests pass; then make them normal tests (end-range IR left).
+3. **Scapulohumeral rhythm.** Done Nov 2026 (girdle, rhythm, scapular muscles); see Known issues 2–3.
 4. **Generalise to several joints.** A joint picker; `data/<joint>.json`; a per-joint config for
    degrees of freedom, presets and labels; shared rendering. Keep each joint's kinematics tested.
 5. **Hip:** flexion/extension, ab/adduction, rotation; gluteals, iliopsoas, adductors, TFL,

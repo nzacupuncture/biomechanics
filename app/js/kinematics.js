@@ -137,6 +137,20 @@ export function sideWrap(O, I, R, n, s) {
   return best;
 }
 
+// Anterior and posterior deltoid: the fibre drapes over a humerus-fixed RIDGE, a line through the
+// tubercle point T in the direction `ridge` (data), like a rope over a bar. Seen end-on (along the
+// ridge) the fibre either clears it or bends round it towards the GH centre; unrolled, the draped
+// length is hypot(|O'T'| + |T'I'|, rise along the ridge). It lifts off exactly when the bend
+// straightens, so length and moment arm change smoothly. (The pilot's tubercle POINT switched on
+// and off while the fibre was still 1-2 cm from it, so the length jumped by up to 1 cm.)
+export function ridgeWrap(O, I, T, e) {
+  const proj = x => v.sub(x, v.mul(e, v.dot(x, e))), a = proj(v.sub(O, T)), b = proj(v.sub(I, T));
+  if (v.dot(cross(b, a), e) <= 0) return { L: v.dist(O, I), pts: [O, I] };
+  const la = v.len(a), lb = v.len(b), dh = v.dot(v.sub(I, O), e), Lp = la + lb;
+  const X = v.add(T, v.mul(e, v.dot(v.sub(O, T), e) + dh * la / Lp));
+  return { L: Math.hypot(Lp, dh), pts: [O, X, I] };
+}
+
 // Wrap radius: cuff on its insertion's sphere, middle deltoid over head + 1.2 cm of tendon and
 // bursa; an origin inside the sphere (acromion) shrinks it to 0.97 × origin distance (decision 4).
 const wrapRadius = (line, headR) => Math.min(line.wrap === 'ins' ? v.len(line.i) : headR + 1.2, 0.97 * v.len(line.o), v.len(line.i));
@@ -191,6 +205,57 @@ export function elbowWrap(O, I, el) {
 // The same rotation for any forearm point (used to draw the forearm and to place the wrist).
 export const elbowQ = (el, k) => qAxis(el.ax, (k - el.k0) * D);
 
+// ---- shoulder girdle ------------------------------------------------------------
+// pose.girdle = { geo, ur, pt, ir, ce, cr }: geo = data.girdle (landmarks and the scapula's ISB axes
+// at rest: X = out of the scapular plane, anterior; Y = up the blade; Z = along the spine, lateral);
+// ur/pt/ir = scapular upward rotation, posterior tilt and internal rotation (degrees, relative to
+// the thorax, ISB order Y-X-Z, about the AC joint); ce/cr = clavicular elevation and retraction
+// (about the SC joint), which carry the AC joint. All zero = the scapula as built (the pilot).
+// Without pose.girdle nothing moves, so every earlier value is unchanged.
+export function girdle(G) {
+  const g = G.geo, ac = g.AC, sc = g.SC;
+  const qC = qMul(qAxis([0, 1, 0], -(G.cr || 0) * D), qAxis([0, 0, 1], -(G.ce || 0) * D));
+  const qS = qMul(qMul(qAxis(g.Y, (G.ir || 0) * D), qAxis(g.X, -(G.ur || 0) * D)), qAxis(g.Z, (G.pt || 0) * D));
+  const acNew = v.add(sc, qRot(qC, v.sub(ac, sc)));
+  const scap = P => v.add(acNew, qRot(qS, v.sub(P, ac))), clav = P => v.add(sc, qRot(qC, v.sub(P, sc)));
+  return { qS, qC, scap, clav, thorax: P => P, gh: scap([0, 0, 0]), ac: acNew };
+}
+
+// Serratus anterior wraps round the chest wall: the thorax as a vertical cylinder on the midline
+// (centre C), just inside both attachments, taking the shorter way round. A straight line would cut
+// through the ribs and, once the scapula has rotated upwards, pull the inferior angle medially.
+export function thoraxWrap(O, I, C) {
+  const A = [0, 1, 0], o = v.sub(O, C), i = v.sub(I, C), oh = o[1], ih = i[1];
+  const Op = [o[0], 0, o[2]], Ip = [i[0], 0, i[2]], ro = v.len(Op), ri = v.len(Ip), r = 0.98 * Math.min(ro, ri);
+  const straight = { L: v.dist(O, I), pts: [O, I] };
+  const phi = Math.atan2(v.dot([Op[1] * Ip[2] - Op[2] * Ip[1], Op[2] * Ip[0] - Op[0] * Ip[2], Op[0] * Ip[1] - Op[1] * Ip[0]], A), v.dot(Op, Ip));
+  const a1 = Math.acos(r / ro), a2 = Math.acos(r / ri), arc = Math.abs(phi) - a1 - a2;
+  if (arc <= 0) return straight;
+  const sg = Math.sign(phi), t1 = Math.sqrt(ro * ro - r * r), t2 = Math.sqrt(ri * ri - r * r), Lp = t1 + r * arc + t2, dh = ih - oh;
+  const e1 = v.mul(Op, 1 / ro), e2 = v.mul([A[1] * e1[2] - A[2] * e1[1], A[2] * e1[0] - A[0] * e1[2], A[0] * e1[1] - A[1] * e1[0]], sg);
+  const pts = [O], n = Math.max(3, Math.ceil(arc / 0.1));
+  for (let k = 0; k <= n; k++) {
+    const f = a1 + arc * k / n, h = oh + dh * (t1 + r * (f - a1)) / Lp;
+    pts.push(v.add(C, v.add(v.add(v.mul(e1, r * Math.cos(f)), v.mul(e2, r * Math.sin(f))), [0, h, 0])));
+  }
+  pts.push(I);
+  return { L: Math.hypot(Lp, dh), pts };
+}
+
+// Scapulohumeral rhythm: scapula and clavicle angles for a thoracohumeral elevation e (degrees),
+// linear fits to healthy-shoulder data (Ludewig et al. 2009, elevation in the scapular plane):
+// about 0.35° upward rotation, 0.12° posterior tilt, 0.1° clavicular elevation and 0.13°
+// clavicular retraction per degree of arm elevation. Same rates in every plane (a simplification).
+export const RHYTHM = { ur: 0.35, pt: 0.12, ir: 0, ce: 0.1, cr: 0.13 };
+export const rhythm = e => Object.fromEntries(Object.entries(RHYTHM).map(([k, r]) => [k, r * e]));
+
+// Glenohumeral elevation: angle between the humeral shaft and where it would hang if the scapula
+// carried it (the scapula's own "arm by side" direction).
+export function ghElevation(q, G) {
+  const d = qRot(q, [0, -1, 0]), ref = G ? qRot(girdle(G).qS, [0, -1, 0]) : [0, -1, 0];
+  return Math.acos(Math.max(-1, Math.min(1, v.dot(d, ref)))) / D;
+}
+
 // ---- swimmer frame ----------------------------------------------------------
 // Turns the upright anatomical model into a prone swimmer and rolls the body about the trunk's
 // long axis. World frame: +X = direction of travel (head), +Y = up out of the water,
@@ -212,7 +277,17 @@ export const toSwimmer = (P, roll, pivot) => qRot(swimQ(roll), v.sub(P, pivot));
 // line: { o: fixed point (thorax/scapula/clavicle frame), i: humerus-local point,
 //         via?: humerus-local fixed via point (long head of biceps in the groove),
 //         wrap?: 'ins' | 'delt' | 'tub', side?: humerus-local direction, tub?: humerus-local point }
-export function path(line, q, headR, elbow) {
+export function path(line, q, headR, elbow, G) {
+  const gd = G ? girdle(G) : null;
+  if (line.ib) { // scapular muscle: thorax/neck to scapula or clavicle
+    const O = line.o, I = gd ? gd[line.ib](line.i) : line.i;
+    if (line.wrap === 'thorax' && G) return thoraxWrap(O, I, G.geo.TC);
+    return { L: v.dist(O, I), pts: [O, I] };
+  }
+  if (gd) { // girdle moved: origins on scapula/clavicle move, and the GH centre moves with the scapula
+    const gh = gd.gh, P = path({ ...line, o: v.sub(gd[line.ob || 'thorax'](line.o), gh) }, q, headR, elbow);
+    return { L: P.L, pts: P.pts.map(x => v.add(x, gh)) };
+  }
   const O = line.o, I = qRot(q, forearm(line, elbow));
   if (line.el && line.el.wrap) { // triceps: wrap at the elbow, worked out in the humerus frame
     const P = elbowWrap(qRot(qInv(q), O), forearm(line, elbow), line.el);
@@ -222,10 +297,10 @@ export function path(line, q, headR, elbow) {
     const W = qRot(q, line.via);
     return { L: v.dist(O, W) + v.dist(W, I), pts: [O, W, I] };
   }
+  if (line.wrap === 'tub' && line.ridge) return ridgeWrap(O, I, qRot(q, line.tub), v.norm(qRot(q, line.ridge)));
   if (line.wrap === 'tub') {
-    // Tubercle obstacle (anterior/posterior deltoid, unchanged from the pilot): the fibre drapes
-    // over T only when T protrudes beyond the straight line. This still switches on and off
-    // abruptly; see CLAUDE.md "Known issues".
+    // Pilot tubercle point (kept for lines without a ridge): the fibre drapes over T only when T
+    // protrudes beyond the straight line, which switches on and off abruptly.
     const T = qRot(q, line.tub), d = v.sub(I, O);
     const t = Math.max(0, Math.min(1, v.dot(v.sub(T, O), d) / v.dot(d, d)));
     const P = v.add(O, v.mul(d, t));
@@ -236,20 +311,34 @@ export function path(line, q, headR, elbow) {
   return { L: v.dist(O, I), pts: [O, I] };
 }
 
-export const length = (line, pose, headR) => path(line, rot(pose.p, pose.e, pose.r, pose.h || 0), headR, pose.k).L;
+export const length = (line, pose, headR) => path(line, rot(pose.p, pose.e, pose.r, pose.h || 0), headR, pose.k, pose.girdle).L;
 
 // Moment arm (cm) = -dL/dθ.  Positive = drives elevation / horizontal adduction / external rotation.
 // k: 'e' elevation, 'p' horizontal (perturbs h: pure rotation about the vertical axis), 'r' rotation.
 // Uses one-sided differences: where the wrap switches route the length jumps, and a central
 // difference across that jump would give absurd values (100+ cm). In that case the smaller
 // one-sided slope is used. This is a guard, not a fix: see CLAUDE.md "Known issues" #1.
-// k: 'e' elevation, 'p' horizontal, 'r' rotation, or 'k' elbow (+ = flexes the elbow).
+// k: 'e' elevation, 'p' horizontal, 'r' rotation, or 'k' elbow (+ = flexes the elbow); for the
+// girdle 'ur' upward rotation, 'pt' posterior tilt, 'ir' internal rotation, 'ce' clavicular
+// elevation, 'cr' clavicular retraction (+ = the muscle drives that motion). Shoulder moment arms
+// are about the GH joint: the scapula is held where it is while the humerus is perturbed.
+// 'urg' = upward rotation of the whole girdle as it happens in the rhythm (the scapula rotating
+// while the clavicle elevates and retracts and the scapula tilts back, in Ludewig's proportions).
+// That is what "upward rotator" means clinically; about the AC joint alone, muscles inserting near
+// it (upper trapezius) or pulling on the coracoid (pec minor) come out with the wrong sign.
+const GIRDLE_KEYS = ['ur', 'pt', 'ir', 'ce', 'cr', 'urg'];
 export function momentArm(line, pose, k, headR) {
   if (k === 'k' && !line.el) return 0; // does not cross the elbow
-  const key = k === 'p' ? 'h' : k, step = 1;
+  if (line.ib && !GIRDLE_KEYS.includes(k)) return 0; // scapular muscles don't reach the humerus
+  const key = k === 'p' ? 'h' : k, step = 1, isG = GIRDLE_KEYS.includes(k);
   const base = { ...pose, h: 0 };
   if (k === 'k' && (base.k === undefined || base.k === null)) base.k = line.el.k0;
-  const at = dx => { const s = { ...base }; s[key] += dx; return length(line, s, headR); };
+  const at = dx => {
+    const s = { ...base };
+    if (key === 'urg') s.girdle = { ...s.girdle, ...Object.fromEntries(Object.entries(RHYTHM).map(([g, r]) => [g, (s.girdle[g] || 0) + dx * r / RHYTHM.ur])) };
+    else if (isG) s.girdle = { ...s.girdle, [key]: (s.girdle[key] || 0) + dx }; else s[key] += dx;
+    return length(line, s, headR);
+  };
   const L0 = at(0), fwd = -(at(step) - L0) / (step * D), back = -(L0 - at(-step)) / (step * D);
   if (Math.abs(fwd - back) > 2) return Math.abs(fwd) < Math.abs(back) ? fwd : back;
   return (fwd + back) / 2;

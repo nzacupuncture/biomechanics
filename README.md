@@ -1,7 +1,7 @@
 # Joint lines of action
 
-Move a joint and see how each muscle's length and moment arms change, on real bones from
-Z-Anatomy. The shoulder is finished as a pilot; other joints are on the roadmap in `CLAUDE.md`.
+Move the arm, elbow and scapula and see how each muscle's length and moment arms change, on real
+bones from Z-Anatomy. The shoulder is done; other joints are on the roadmap in `CLAUDE.md`.
 
 ## Getting started with Claude Code
 
@@ -22,7 +22,12 @@ Good next requests once it's live:
 
 ## Using it
 
-- **Sliders** set the shoulder (plane of elevation, elevation, rotation) and the elbow.
+- **Sliders** set the arm (plane of elevation, elevation, rotation) and the elbow.
+- **Scapula:** *Moves with the arm* (default) follows healthy scapulohumeral rhythm, so about a
+  third of arm elevation happens at the scapula and the pose line shows the glenohumeral angle;
+  *Fixed* shows the glenohumeral joint on its own; *Set by hand* lets you set upward rotation, tilt,
+  winging, elevation and retraction to explore dyskinesis. Scapular muscles (trapezius, rhomboids,
+  levator scapulae, serratus anterior, pec minor) have their own table.
 - **Drag the arm** in the 3D view to move it; hold **Shift** while dragging to rotate it about its
   long axis. Drag anywhere else to turn the view; scroll to zoom.
 - **Swimmer view** lays the body face down in the water with a **Body roll** slider, and tells you
@@ -41,7 +46,8 @@ npm run serve    # then open http://localhost:8000
 ```
 
 The `pipeline/` folder rebuilds the bone and muscle data from Z-Anatomy. You only need it when
-adding a joint or changing attachments; Claude Code will run it for you (`pipeline/setup.sh` first).
+adding a joint or changing attachments; Claude Code will run it for you (`brew install uv`, then
+`pipeline/setup.sh`, the first time).
 
 ## Licence
 

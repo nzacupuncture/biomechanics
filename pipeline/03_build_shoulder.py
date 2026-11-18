@@ -83,9 +83,12 @@ add("Subscapularis (upper)", "cuff", u, m("Subscapularis muscle.er"), wrap="ins"
 add("Subscapularis (lower)", "cuff", l, m("Subscapularis muscle.er"), wrap="ins", side=[0, 0, 1])
 # Deltoid: anterior/posterior drape over a tubercle obstacle, middle wraps locked laterally
 dI = m("Deltoid muscle.er")
-add("Anterior deltoid", "delt", m("Clavicular part of deltoid muscle.or"), dI, wrap="tub", tub=[-2.6, -0.6, 2.6])
-add("Middle deltoid", "delt", m("Acromial part of deltoid muscle.or"), dI, wrap="delt", side=[-1, 0, 0])
-add("Posterior deltoid", "delt", m("Scapular spinal part of deltoid muscle.or"), dI, wrap="tub", tub=[-2.6, -0.6, -2.6])
+# ridge: direction (humerus-local) of the line through the tubercle point that the fibre drapes over;
+# chosen by a search over directions for smooth moment arms that keep the anatomy tests and the
+# published abduction profile (Known issue 1, Nov 2026)
+add("Anterior deltoid", "delt", m("Clavicular part of deltoid muscle.or"), dI, wrap="tub", tub=[-2.6, -0.6, 2.6], ridge=[0.49, 0.21, 0.85])
+add("Middle deltoid", "delt", m("Acromial part of deltoid muscle.or"), dI, wrap="tub", tub=[-4.0, 0, 0], ridge=[0, 1, 0])  # ridge along the shaft over the greater tubercle
+add("Posterior deltoid", "delt", m("Scapular spinal part of deltoid muscle.or"), dI, wrap="tub", tub=[-2.6, -0.6, -2.6], ridge=[-0.86, -0.1, 0.5])
 # Pec major. NB the '.er' patch of the sternocostal head is its ORIGIN and only covers the lower
 # sternum, so the sternocostal origin is taken from where the muscle mesh touches sternum/cartilages.
 pI = m("Pectoralis major muscle.er")
@@ -108,33 +111,106 @@ add("Biceps (long head)", "arm", m("Long head of biceps brachii.or"), m("Biceps 
 add("Biceps (short head)", "arm", near(F["Short head of biceps brachii.r"], scap, 0.4).mean(0), m("Biceps brachii muscle.er"), ins="fore")
 add("Triceps (long head)", "arm", m("Long head of triceps brachii.or"), m("Triceps brachii muscle.er"), ins="fore", elwrap=1)
 
+# ---- 4b. scapular muscles: thorax/neck to scapula or clavicle -------------------
+# Origins and insertions by bone contact (decision 5): the mean of the muscle-mesh vertices that
+# touch the bone. Serratus anterior is split into an upper (superior angle) and lower (inferior
+# angle) line by height.
+CERV = [k for k in ["Atlas (C1)", "Axis (C2)"] + [f"Vertebra C{i}" for i in range(3, 8)] if k in F]
+VERT = np.vstack([F[k] for k in CERV + [f"Vertebra T{i}" for i in range(1, 13)]])
+NECK = np.vstack([F[k] for k in CERV + ["Occipital bone", "Nuchal ligament"] if k in F])
+RIBS = np.vstack([F[k] for k in F if k.endswith(" rib.r")])
+SCAP, CLAV = F["Scapula.r"], F["Clavicle.r"]
+def touch(muscle, bone, d=0.4):
+    X = F[muscle + ".r"]; t = KD(bone)
+    while True:
+        P = X[t.query(X)[0] < d]
+        if len(P) >= 5 or d > 2: return P
+        d *= 1.5
+slines = []
+def adds(n, O, I, ib, **kw): slines.append(dict(n=n, o=O, i=I, ib=ib, **kw))
+# Trapezius: Z-Anatomy's part names are swapped relative to their positions ("Descending part" runs
+# from about T8-T10, "Ascending part" from the neck), so the parts are named by where they attach.
+# The low part's mesh stops a few cm short of the spinous processes: its origin is its midline edge.
+LT = F["Descending part of trapezius muscle.r"]
+adds("Trapezius (upper)", touch("Ascending part of trapezius muscle", VERT).mean(0), touch("Ascending part of trapezius muscle", SCAP).mean(0), "scap")
+adds("Trapezius (middle)", touch("Transverse part of trapezius muscle", VERT).mean(0), touch("Transverse part of trapezius muscle", SCAP).mean(0), "scap")
+adds("Trapezius (lower)", LT[LT[:, 0] >= np.quantile(LT[:, 0], 0.95)].mean(0), touch("Descending part of trapezius muscle", SCAP).mean(0), "scap")
+adds("Rhomboid minor", touch("Rhomboid minor muscle", VERT).mean(0), touch("Rhomboid minor muscle", SCAP).mean(0), "scap")
+adds("Rhomboid major", touch("Rhomboid major muscle", VERT).mean(0), touch("Rhomboid major muscle", SCAP).mean(0), "scap")
+adds("Levator scapulae", touch("Levator scapulae", VERT).mean(0), touch("Levator scapulae", SCAP).mean(0), "scap")
+sa_o, sa_i = touch("Serratus anterior muscle", RIBS), touch("Serratus anterior muscle", SCAP)
+q = lambda P, lo, hi: P[(P[:, 1] >= np.quantile(P[:, 1], lo)) & (P[:, 1] <= np.quantile(P[:, 1], hi))].mean(0)
+adds("Serratus anterior (upper)", q(sa_o, 0.75, 1), q(sa_i, 0.75, 1), "scap", wrap="thorax")  # wraps round the chest wall
+adds("Serratus anterior (lower)", q(sa_o, 0, 0.5), q(sa_i, 0, 0.25), "scap", wrap="thorax")
+adds("Pectoralis minor", touch("Pectoralis minor muscle", RIBS).mean(0), touch("Pectoralis minor muscle", SCAP).mean(0), "scap")
+
+# ---- 4c. girdle landmarks and scapular axes ------------------------------------
+# ISB landmarks from the scapula mesh (Z-Anatomy's landmark labels are stored relative to parents
+# that are not extracted, so their positions can't be used). x = medial(+), y = up, z = anterior.
+sx, sy, sz = SCAP[:, 0], SCAP[:, 1], SCAP[:, 2]
+AI = SCAP[sy.argmin()]                                                     # inferior angle: lowest point
+med = SCAP[sx >= np.quantile(sx, 0.93)]
+SA = med[med[:, 1].argmax()]                                               # superior angle: top of the medial border
+up = med[med[:, 1] >= med[:, 1].min() + 0.55 * np.ptp(med[:, 1])]       # upper 45% of the medial border
+TS = up[up[:, 2].argmin()]                                                 # root of the spine: most posterior point there
+top = SCAP[sy >= np.quantile(sy, 0.85)]
+AA = top[(-top[:, 0] - top[:, 2]).argmax()]                                # acromial angle: posterolateral corner
+CP = SCAP[sz.argmax()]                                                     # coracoid tip: most anterior point
+cx = CLAV[:, 0]  # x = medial(+) for the right side after conversion
+SC = CLAV[cx >= np.quantile(cx, 0.97)].mean(0); AC = CLAV[cx <= np.quantile(cx, 0.03)].mean(0)
+Zs = AA - TS; Zs /= np.linalg.norm(Zs)                                                     # ISB: TS to AA, lateral
+Xs = np.cross(AA - AI, TS - AI); Xs -= Zs * (Xs @ Zs); Xs /= np.linalg.norm(Xs); Xs *= np.sign(Xs[2])  # plane normal, anterior
+Ys = np.cross(Zs, Xs)                                                                         # up the blade
+print(f"scapular axes X {Xs.round(2)} Y {Ys.round(2)} Z {Zs.round(2)}; AI {fix(AI[None])[0].round(1)} TS {fix(TS[None])[0].round(1)} AA {fix(AA[None])[0].round(1)} SA {fix(SA[None])[0].round(1)} CP {fix(CP[None])[0].round(1)} SC {fix(SC[None])[0].round(1)} AC {fix(AC[None])[0].round(1)}")
+
+# origin bone of each humeral muscle line: whichever of scapula / clavicle / thorax it sits on
+THX = np.vstack([F[k] for k in F if k.startswith(("Vertebra", "Costal")) or k.endswith(" rib.r") or "sternum" in k.lower()
+                 or k in ("Xiphoid process",) or k.startswith(("Ilium", "Hip bone"))])
+bone_trees = dict(scap=KD(SCAP), clav=KD(CLAV), thorax=KD(THX))
+def obone(O): return min(bone_trees, key=lambda b: bone_trees[b].query(O)[0])
+
 r2 = lambda a: np.round(a, 2).tolist()
 L = []
 for x in lines:
     d = dict(n=x["n"], g=x["g"], o=r2(fix(x["o"][None])[0]), i=r2((flex if x["ins"] == "fore" else q0)(x["i"][None])[0]),
              via=None if "via" not in x else r2(q0(x["via"][None])[0]), wrap=x.get("wrap"))
+    d["ob"] = obone(x["o"]) if x["n"] != "Latissimus (iliac)" else "thorax"  # iliac crest is not in the extracted bones
     if "side" in x: d["side"] = x["side"]
     if "tub" in x: d["tub"] = x["tub"]
+    if "ridge" in x: d["ridge"] = x["ridge"]
     if x["ins"] == "fore":  # elbow: rotate about the epicondylar axis by (elbow angle - k0)
         d["el"] = dict(ep=r2(ep), ax=np.round(eax, 4).tolist(), k0=round(float(elbow_k0), 1))
         if x.get("elwrap"): d["el"]["wrap"] = x["elwrap"]  # triceps: wraps posteriorly at the elbow
     L.append(d)
 
+for x in slines:
+    L.append(dict(n=x["n"], g="scap", o=r2(fix(x["o"][None])[0]), i=r2(fix(x["i"][None])[0]), ib=x["ib"], via=None, wrap=x.get("wrap")))
+# thorax as a vertical cylinder for serratus wrapping: centre line on the midline (thoracic
+# vertebrae), halfway between the front and back of ribs 4-9
+R49 = np.vstack([F[f"{o} rib.r"] for o in "Fourth Fifth Sixth Seventh Eighth Ninth".split()])
+TV = np.vstack([F[f"Vertebra T{i}"] for i in range(1, 13)])
+TC = np.array([np.median(TV[:, 0]), c[1], (R49[:, 2].min() + R49[:, 2].max()) / 2])
+TA = [float(TC[0] - R49[:, 0].min()), float((R49[:, 2].max() - R49[:, 2].min()) / 2)]  # half-width (lateral), half-depth
+girdle = dict(TC=r2(fix(TC[None])[0]), TA=r2(np.array(TA)), SC=r2(fix(SC[None])[0]), AC=r2(fix(AC[None])[0]), AI=r2(fix(AI[None])[0]), SA=r2(fix(SA[None])[0]), TS=r2(fix(TS[None])[0]),
+              AA=r2(fix(AA[None])[0]), CP=r2(fix(CP[None])[0]), X=np.round(Xs, 4).tolist(), Y=np.round(Ys, 4).tolist(), Z=np.round(Zs, 4).tolist())
+
 # ---- 5. footprints, quantise, write ---------------------------------------------
-GR = {"cuff": 1, "delt": 2, "pec": 3, "lat": 4, "arm": 5}
+GR = {"cuff": 1, "delt": 2, "pec": 3, "lat": 4, "arm": 5, "scap": 6}
 patches = []
 for n, g in [("Supraspinatus muscle", "cuff"), ("Infraspinatus muscle", "cuff"), ("Teres minor muscle", "cuff"), ("Subscapularis muscle", "cuff"),
              ("Teres major muscle", "lat"), ("Latissimus dorsi muscle", "lat"), ("Scapular spinal part of deltoid muscle", "delt"),
              ("Acromial part of deltoid muscle", "delt"), ("Clavicular part of deltoid muscle", "delt"), ("Deltoid muscle", "delt"),
              ("Pectoralis major muscle", "pec"), ("Coracobrachialis muscle", "arm"), ("Long head of biceps brachii", "arm"),
-             ("Long head of triceps brachii", "arm")]:
+             ("Long head of triceps brachii", "arm"), ("Descending part of trapezius muscle", "scap"), ("Transverse part of trapezius muscle", "scap"),
+             ("Ascending part of trapezius muscle", "scap"), ("Levator scapulae", "scap"), ("Serratus anterior muscle", "scap"),
+             ("Pectoralis minor muscle", "scap")]:
     for s in (".or", ".er"):
         if n + s in F: patches.append((F[n + s], g))
-contact_bones = ["Humerus.r", "Scapula.r", "Clavicle.r", "Body of sternum", "Manubrium of sternum"] + [k for k in F if k.startswith(("Costal", "Vertebra"))]
+contact_bones = ["Humerus.r", "Scapula.r", "Clavicle.r", "Body of sternum", "Manubrium of sternum", "Atlas (C1)", "Axis (C2)", "Occipital bone"] + [k for k in F if k.startswith(("Costal", "Vertebra")) or k.endswith(" rib.r")]
 trees = [KD(F[b]) for b in contact_bones if b in F]
 for n, g in [("Teres major muscle.r", "lat"), ("Latissimus dorsi muscle.r", "lat"), ("Coracobrachialis muscle.r", "arm"),
              ("Short head of biceps brachii.r", "arm"), ("Sternocostal head of pectoralis major muscle.r", "pec"),
-             ("Clavicular head of pectoralis major muscle.r", "pec")]:
+             ("Clavicular head of pectoralis major muscle.r", "pec"), ("Rhomboid major muscle.r", "scap"), ("Rhomboid minor muscle.r", "scap")]:
     X = F[n]; patches.append((np.vstack([X[t.query(X)[0] < 0.35] for t in trees]), g))
 PT = np.vstack([p for p, _ in patches]); PG = np.concatenate([[GR[g]] * len(p) for p, g in patches]); pt = KD(PT)
 
@@ -148,8 +224,8 @@ def pack(keys, tf, colour=True):
                 c=base64.b64encode(col.tobytes()).decode(), big=big)
 
 static = [k for k in B if k not in ("Humerus.r", "Radius.r", "Ulna.r", "Scapula.r", "Clavicle.r")]
-out = dict(girdle=pack(["Scapula.r", "Clavicle.r"], fix), thorax=pack(static, fix), hum=pack(["Humerus.r"], q0),
-           fore=pack(fore, flex, colour=False), lines=L, R=round(float(r), 2),
+out = dict(scap=pack(["Scapula.r"], fix), clav=pack(["Clavicle.r"], fix), thorax=pack(static, fix), hum=pack(["Humerus.r"], q0),
+           fore=pack(fore, flex, colour=False), lines=L, R=round(float(r), 2), girdle=girdle,
            ep=r2(ep), me=r2(me), le=r2(le), wrist=r2(wrist))
 json.dump(out, open(OUT, "w"))
 print(f"wrote {OUT}: {len(L)} muscle lines")
