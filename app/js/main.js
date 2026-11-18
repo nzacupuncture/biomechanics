@@ -85,10 +85,11 @@ footG.renderOrder = 6; body.add(footG);
 // ---------- orbit camera ----------
 const tgt = new THREE.Vector3(-6, -7, 2);
 let az = -35 * D, el = 10 * D, dist = 132;
+let swimDepth = -4; // Swimmer view centre: a little under the surface, deeper for underwater phases
 const SWIM_T = new THREE.Vector3(...toSwimmer([0, -6, 0], 0, PIVOT)).setY(WATER - 4);
 function place() {
   const narrow = cv.clientWidth / Math.max(1, cv.clientHeight) < 0.9;
-  if (swim) tgt.copy(SWIM_T); else tgt.set(narrow ? 3 : -6, -7, 2);
+  if (swim) tgt.copy(SWIM_T).setY(WATER + swimDepth); else tgt.set(narrow ? 3 : -6, -7, 2);
   cam.position.set(tgt.x + dist * Math.cos(el) * Math.sin(az), tgt.y + dist * Math.sin(el), tgt.z + dist * Math.cos(el) * Math.cos(az));
   cam.lookAt(tgt); render();
 }
@@ -358,6 +359,12 @@ const PRE = [['Arm by side', { p: 0, e: 0, r: 0, k: 90 }], ['Abduction 90°', { 
   // Swimmer view). Angles fitted so the hand and elbow sit where each phase is described, with
   // internal rotation only. The scapula is fixed, so the shoulder angles stand for the whole arm
   // relative to the trunk and overstate glenohumeral demand (see CLAUDE.md Known issue 2).
+  // Freestyle underwater phases, same swimmer. Angles fitted (scapula moving with the arm) so hand and
+  // elbow sit where each phase is described; internal rotation only, high elbow in the pull. Body roll
+  // towards the pulling side (negative), largest in the pull. Teaching estimates for Nazan to refine.
+  ['Underwater 1: catch', { p: -10, e: 170, r: -10, k: 80, roll: -30, swim: true }], // forearm ~vertical, elbow just under the surface, hand ~30 cm ahead
+  ['Underwater 2: pull', { p: 15, e: 70, r: -40, k: 90, roll: -40, swim: true }],    // hand under the chest, slightly inwards; elbow above the hand
+  ['Underwater 3: push', { p: -30, e: 10, r: -20, k: 20, roll: -15, swim: true }],   // hand by the thigh, slightly outwards, forearm facing back
   ['Recovery A: exit', { p: -30, e: 35, r: -70, k: 70, roll: 40, swim: true }],   // wrist at the surface by the hip; elbow 14 cm up, leading
   ['Recovery B: mid', { p: -30, e: 105, r: -10, k: 120, roll: 40, swim: true }],  // elbow at its highest (~24 cm up); wrist passing the shoulder
   ['Recovery C: entry', { p: 5, e: 165, r: -20, k: 20, roll: 40, swim: true }]];  // wrist at the surface ~50 cm ahead of the shoulder
@@ -366,7 +373,11 @@ function markPreset(i) { document.querySelectorAll('#presets button').forEach(b 
 $('presets').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const { swim: sw, ...pose } = PRE[+b.dataset.i][1];
-  Object.assign(st, pose); if (sw && !swim) setSwim(true); markPreset(+b.dataset.i); update();
+  Object.assign(st, pose); if (sw && !swim) setSwim(true);
+  // swimming presets: underwater phases are seen from the swimmer's right just below the surface,
+  // recovery phases from above the water
+  if (sw) { const under = pose.roll < 0; az = (under ? 20 : 55) * D; el = (under ? -8 : 22) * D; dist = 150; swimDepth = under ? -22 : -4; place(); }
+  markPreset(+b.dataset.i); update();
 });
 $('gmode').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -376,7 +387,7 @@ $('gmode').addEventListener('click', e => {
 ['ur', 'pt', 'ir', 'ce', 'cr'].forEach(k => { const el = $('g' + k); [el.min, el.max] = GIRDLE_RANGE[k]; el.addEventListener('input', e => { gm[k] = +e.target.value; update(); }); });
 function setSwim(on) {
   swim = on; $('swimBtn').setAttribute('aria-pressed', on); $('rollRow').hidden = !on;
-  if (on) { az = 55 * D; el = 22 * D; dist = 150; } else { az = -35 * D; el = 10 * D; dist = 132; }
+  if (on) { az = 55 * D; el = 22 * D; dist = 150; swimDepth = -4; } else { az = -35 * D; el = 10 * D; dist = 132; }
   place(); update();
 }
 $('swimBtn').onclick = () => setSwim(!swim);

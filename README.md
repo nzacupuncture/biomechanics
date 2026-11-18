@@ -38,8 +38,9 @@ Good next requests once it's live:
 - **Swimmer view** lays the body face down in the water with a **Body roll** slider, and tells you
   where the elbow and wrist are relative to the water and the shoulder. Roll doesn't change muscle
   lengths (the muscles roll with the trunk); it changes where the arm is in the water.
-- **Presets** include serve cocking, freestyle catch and three freestyle recovery phases (exit,
-  mid-recovery, entry; high-elbow sprinter, 40° roll).
+- **Presets** include serve cocking, freestyle catch, three freestyle underwater phases (catch with
+  an early vertical forearm, pull, push) and three recovery phases (exit, mid-recovery, entry);
+  high-elbow sprinter with up to 40° roll.
 - **Whole body** shows the rest of the skeleton faintly for reference (button to hide it); the right
   hand moves with the forearm.
 - **Draw a line** to add your own muscle line from the scapula, clavicle or ribcage to the humerus or
