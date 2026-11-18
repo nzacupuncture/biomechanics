@@ -1,8 +1,8 @@
 // Rendering and UI. All biomechanics lives in kinematics.js (unit-tested); this file only
 // draws what kinematics.js computes. THREE is loaded as a global (UMD r128) in index.html.
-import { rot, path, length, momentArm, qInv, qRot, D } from './kinematics.js';
+import { rot, path, length, momentArm, qInv, qRot, D } from './kinematics.js?v=dev';
 
-const DATA = await (await fetch('data/shoulder.json')).json();
+const DATA = await (await fetch('data/shoulder.json?v=dev')).json();
 const HR = DATA.R;
 const $ = id => document.getElementById(id);
 const GROUPS = [['cuff', 'Rotator cuff'], ['delt', 'Deltoid'], ['pec', 'Pec major'], ['lat', 'Lat and teres major'], ['arm', 'Arm muscles'], ['mine', 'Your lines']];

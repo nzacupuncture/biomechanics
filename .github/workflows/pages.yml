@@ -30,6 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Stamp file links with this commit so browsers fetch fresh code after every publish
+      # (GitHub Pages lets browsers keep files for 10 minutes). Locally they stay "?v=dev".
+      - run: sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g" app/index.html app/js/main.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: app
