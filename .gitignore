@@ -1,0 +1,6 @@
+pipeline/.cache/
+pipeline/.venv/
+__pycache__/
+*.pkl
+node_modules/
+.DS_Store
