@@ -1,4 +1,7 @@
-# Joint lines of action
+# Biomechanics
+
+(Formerly "Joint lines of action". Repo nzacupuncture/biomechanics, live at
+https://nzacupuncture.github.io/biomechanics/ ; renamed Nov 2026, the old address no longer works.)
 
 An interactive teaching tool: move a joint and see how each muscle's length and moment arms
 change, on real bone geometry from Z-Anatomy. Built for Nazan, an osteopath who runs Virtue

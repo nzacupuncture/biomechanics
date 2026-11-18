@@ -1,11 +1,13 @@
-# Joint lines of action
+# Biomechanics
+
+Live at **https://nzacupuncture.github.io/biomechanics/** (GitHub: nzacupuncture/biomechanics).
 
 Move the arm, elbow and scapula and see how each muscle's length and moment arms change, on real
 bones from Z-Anatomy. The shoulder is done; other joints are on the roadmap in `CLAUDE.md`.
 
 ## Getting started with Claude Code
 
-1. Unzip this folder somewhere sensible (for example `~/Projects/joint-lines-of-action`).
+1. Unzip this folder somewhere sensible (for example `~/Projects/biomechanics`).
 2. Open the folder in Claude Code and start with:
 
    > Read CLAUDE.md. Run the tests, start the app locally so I can check it, then help me put
