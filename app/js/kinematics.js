@@ -207,15 +207,22 @@ export const elbowQ = (el, k) => qAxis(el.ax, (k - el.k0) * D);
 
 // ---- shoulder girdle ------------------------------------------------------------
 // pose.girdle = { geo, ur, pt, ir, ce, cr }: geo = data.girdle (landmarks and the scapula's ISB axes
+// (ir is winging beyond the chest-following rotation that protraction brings; see protractionIR)
 // at rest: X = out of the scapular plane, anterior; Y = up the blade; Z = along the spine, lateral);
 // ur/pt/ir = scapular upward rotation, posterior tilt and internal rotation (degrees, relative to
 // the thorax, ISB order Y-X-Z, about the AC joint); ce/cr = clavicular elevation and retraction
 // (about the SC joint), which carry the AC joint. All zero = the scapula as built (the pilot).
 // Without pose.girdle nothing moves, so every earlier value is unchanged.
+// Protraction glides the scapula round the chest wall: the scapula turns inwards (internal rotation)
+// as the clavicle protracts, about 0.73° per degree, a little less towards full retraction. These
+// values keep the inferior angle on the ribs (solved on this skeleton's elliptical ribcage, then fitted
+// to within 0.2°). Without it, protraction pushed the medial border straight into the ribs and
+// retraction lifted it off. So `ir` is rotation BEYOND what protraction brings: + = winging.
+export const protractionIR = cr => -0.73 * cr + 0.00275 * cr * cr;
 export function girdle(G) {
-  const g = G.geo, ac = g.AC, sc = g.SC;
+  const g = G.geo, ac = g.AC, sc = g.SC, ir = (G.ir || 0) + protractionIR(G.cr || 0);
   const qC = qMul(qAxis([0, 1, 0], -(G.cr || 0) * D), qAxis([0, 0, 1], -(G.ce || 0) * D));
-  const qS = qMul(qMul(qAxis(g.Y, (G.ir || 0) * D), qAxis(g.X, -(G.ur || 0) * D)), qAxis(g.Z, (G.pt || 0) * D));
+  const qS = qMul(qMul(qAxis(g.Y, ir * D), qAxis(g.X, -(G.ur || 0) * D)), qAxis(g.Z, (G.pt || 0) * D));
   const acNew = v.add(sc, qRot(qC, v.sub(ac, sc)));
   const scap = P => v.add(acNew, qRot(qS, v.sub(P, ac))), clav = P => v.add(sc, qRot(qC, v.sub(P, sc)));
   return { qS, qC, scap, clav, thorax: P => P, gh: scap([0, 0, 0]), ac: acNew };
@@ -278,6 +285,11 @@ export function turnAbout(axis, from, to) {
 // about 0.35° upward rotation, 0.12° posterior tilt, 0.1° clavicular elevation and 0.13°
 // clavicular retraction per degree of arm elevation. Same rates in every plane (a simplification).
 export const RHYTHM = { ur: 0.35, pt: 0.12, ir: 0, ce: 0.1, cr: 0.13 };
+// Limits for setting the girdle by hand or dragging it (degrees from rest), typical active ranges:
+// clavicle (SC joint) elevation ~35°, depression ~10°, protraction ~20°, retraction ~25°; scapula
+// upward rotation to ~60° (end of arm elevation), downward ~10°, posterior tilt ~30°, anterior
+// ~20°; internal rotation (winging) left generous to show pathology. Healthy rhythm stays inside.
+export const GIRDLE_RANGE = { ur: [-10, 60], pt: [-20, 30], ir: [-15, 40], ce: [-10, 35], cr: [-20, 25] };
 export const rhythm = e => Object.fromEntries(Object.entries(RHYTHM).map(([k, r]) => [k, r * e]));
 
 // Glenohumeral elevation: angle between the humeral shaft and where it would hang if the scapula

@@ -74,10 +74,13 @@ function worstJumpRhythm(line, plane, k, sweep) {
 }
 const elevSweep = Array.from({ length: 31 }, (_, i) => i * 5), rotSweep = Array.from({ length: 37 }, (_, i) => -90 + i * 5);
 const humeral = data.lines.filter(l => !l.ib);
-test('scapula moving: no moment-arm jump larger than 3 cm per 5° (guard level)', () => {
+// Guard is 4 cm with the scapula moving (agreed with Nazan, Nov 2026): making the rhythm glide round
+// the chest wall (protractionIR) leaves a 3.6 cm route swap for the lower infraspinatus at 90°
+// abduction with 75° internal rotation (end range). Don't raise it further without her.
+test('scapula moving: no moment-arm jump larger than 4 cm per 5° (guard level)', () => {
   for (const l of humeral) {
-    for (const plane of [0, 40, 90]) { const j = worstJumpRhythm(l, plane, 'e', elevSweep); assert.ok(j.worst < 3, `${l.n} plane ${plane}: ${j.worst.toFixed(1)} at ${j.at}`); }
-    const j = worstJumpRhythm(l, 0, 'r', rotSweep); assert.ok(j.worst < 3, `${l.n} rotation: ${j.worst.toFixed(1)} at ${j.at}`);
+    for (const plane of [0, 40, 90]) { const j = worstJumpRhythm(l, plane, 'e', elevSweep); assert.ok(j.worst < 4, `${l.n} plane ${plane}: ${j.worst.toFixed(1)} at ${j.at}`); }
+    const j = worstJumpRhythm(l, 0, 'r', rotSweep); assert.ok(j.worst < 4, `${l.n} rotation: ${j.worst.toFixed(1)} at ${j.at}`);
   }
 });
 test('scapula moving: no moment-arm jump larger than 1 cm per 5° (target)', { todo: true }, () => {
@@ -91,11 +94,31 @@ test('scapula moving: no moment-arm jump larger than 1 cm per 5° (target)', { t
 import { scapulaAngles, clavicleAngles, turnAbout } from '../app/js/kinematics.js';
 test('dragging: scapula and clavicle angles are recovered from their rotations', () => {
   const want = { ur: 25, pt: -10, ir: 15, ce: 12, cr: -8 }, g = girdle({ geo, ...want });
-  const s = scapulaAngles({ geo, ur: 0, pt: 0, ir: 0 }, g.qS), c = clavicleAngles({ geo, ce: 0, cr: 0 }, g.qC);
+  // the scapula fit is given the clavicle angles (winging is measured relative to protraction)
+  const s = scapulaAngles({ geo, ur: 0, pt: 0, ir: 0, ce: want.ce, cr: want.cr }, g.qS), c = clavicleAngles({ geo, ce: 0, cr: 0 }, g.qC);
   for (const k of ['ur', 'pt', 'ir']) assert.ok(Math.abs(s[k] - want[k]) < 0.01, `${k} ${s[k]}`);
   for (const k of ['ce', 'cr']) assert.ok(Math.abs(c[k] - want[k]) < 0.01, `${k} ${c[k]}`);
 });
 test('dragging: turning about an axis gives the signed angle (right-hand rule)', () => {
   assert.ok(Math.abs(turnAbout([1, 0, 0], [0, 1, 0], [0, 0, 1]) - 90) < 1e-9);  // +y to +z about +x
   assert.ok(Math.abs(turnAbout([1, 0, 0], [0, 0, 1], [0, 1, 0]) + 90) < 1e-9);
+});
+
+import { GIRDLE_RANGE, RHYTHM } from '../app/js/kinematics.js';
+test('girdle limits: healthy rhythm stays inside them up to 170° of arm elevation', () => {
+  for (let e = 0; e <= 170; e += 10) for (const [k, x] of Object.entries(rhythm(e))) {
+    const [lo, hi] = GIRDLE_RANGE[k]; assert.ok(x >= lo && x <= hi, `${k}=${x} at ${e}°`);
+  }
+});
+test('girdle limits: clavicle within typical SC ranges (elevation ≤ 35°, retraction and protraction ≤ 25°)', () => {
+  assert.ok(GIRDLE_RANGE.ce[1] <= 35 && GIRDLE_RANGE.ce[0] >= -15 && GIRDLE_RANGE.cr[1] <= 25 && GIRDLE_RANGE.cr[0] >= -25);
+});
+
+test('girdle: protraction and retraction glide the scapula round the chest wall (no sinking in or lifting off)', () => {
+  const TC = geo.TC, TA = geo.TA, rho = P => Math.hypot((P[0] - TC[0]) / TA[0], (P[2] - TC[2]) / TA[1]);
+  for (const cr of [-20, -10, 10, 20, 25]) {
+    const g = girdle({ geo, cr });
+    assert.ok(Math.abs(rho(g.scap(geo.AI)) / rho(geo.AI) - 1) < 0.03, `inferior angle at cr=${cr}`);
+    assert.ok(Math.abs(rho(g.scap(geo.TS)) / rho(geo.TS) - 1) < 0.12, `root of spine at cr=${cr}`);
+  }
 });

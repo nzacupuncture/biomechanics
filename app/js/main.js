@@ -1,6 +1,6 @@
 // Rendering and UI. All biomechanics lives in kinematics.js (unit-tested); this file only
 // draws what kinematics.js computes. THREE is loaded as a global (UMD r128) in index.html.
-import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, ghElevation, scapulaAngles, clavicleAngles, turnAbout } from './kinematics.js?v=dev';
+import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, ghElevation, scapulaAngles, clavicleAngles, turnAbout, GIRDLE_RANGE } from './kinematics.js?v=dev';
 
 const DATA = await (await fetch('data/shoulder.json?v=dev')).json();
 const HR = DATA.R;
@@ -75,7 +75,7 @@ const tubes = new THREE.Group(); body.add(tubes);
 // Swimmer view: roll axis along the trunk's centre line; water surface level with the back.
 thorax.geometry.computeBoundingBox();
 const tb = thorax.geometry.boundingBox, PIVOT = [(tb.min.x + tb.max.x) / 2, 0, (tb.min.z + tb.max.z) / 2], WATER = PIVOT[2] - tb.min.z;
-const water = new THREE.Mesh(new THREE.PlaneGeometry(380, 170), new THREE.MeshBasicMaterial({ color: 0x3d8fd1, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+const water = new THREE.Mesh(new THREE.PlaneGeometry(380, 170), new THREE.MeshBasicMaterial({ color: 0x2a78c2, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
 water.rotation.x = -Math.PI / 2; water.position.set(-60, WATER, 10); water.visible = false; scene.add(water);
 const maLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0x111111, dashSize: 0.5, gapSize: 0.35, depthTest: false }));
 maLine.renderOrder = 5; body.add(maLine);
@@ -102,7 +102,7 @@ cv.addEventListener('pointerdown', e => {
   }
 });
 const DRAGGABLE = () => [arm, scapM, clavM];
-const GRANGE = { ur: [-15, 65], pt: [-25, 45], ir: [-20, 40], ce: [-15, 45], cr: [-30, 40] };
+const GRANGE = GIRDLE_RANGE;
 // What each bone does when dragged: humerus = shoulder (Shift = rotation); radius, ulna or hand =
 // elbow; scapula = rotates about the AC joint; clavicle = swings about the SC joint. Grabbing the
 // scapula or clavicle switches the scapula to "Set by hand", starting from where it was.
@@ -110,9 +110,13 @@ function startGrab(h, e) {
   const P = body.worldToLocal(h.point.clone()).toArray(), q = rot(st.p, st.e, st.r), gh = ghNow();
   if (h.object === foreM || h.object === handM) { grab = { kind: 'elbow', P, k0: st.k }; return; }
   if (h.object === scapM || h.object === clavM) {
-    if (gmode !== 'manual') { const G = Gnow(); Object.assign(gm, G ? Object.fromEntries(Object.keys(GRANGE).map(k => [k, G[k]])) : { ur: 0, pt: 0, ir: 0, ce: 0, cr: 0 }); gmode = 'manual'; }
-    const g = girdle({ geo: GEO, ...gm }), scap = h.object === scapM;
-    grab = { kind: scap ? 'scap' : 'clav', P, pivot: scap ? g.ac : GEO.SC, q0: scap ? g.qS : g.qC };
+    if (gmode !== 'manual') { const G = Gnow(); Object.assign(gm, G ? Object.fromEntries(Object.keys(GRANGE).map(k => [k, clamp(G[k], ...GRANGE[k])])) : { ur: 0, pt: 0, ir: 0, ce: 0, cr: 0 }); gmode = 'manual'; }
+    const g = girdle({ geo: GEO, ...gm }), scap = h.object === scapM, pivot = scap ? g.ac : GEO.SC;
+    // Lever: the whole bone (AC to inferior angle for the scapula, SC to AC for the clavicle), so a
+    // grab close to the joint doesn't turn small hand movements into big angles. The drag works
+    // from where the pointer first meets that sphere, so nothing jumps when it starts.
+    const lever = Math.max(Math.hypot(...P.map((x, j) => x - pivot[j])), scap ? Math.hypot(...GEO.AI.map((x, j) => x - GEO.AC[j])) : Math.hypot(...GEO.AC.map((x, j) => x - GEO.SC[j])));
+    grab = { kind: scap ? 'scap' : 'clav', pivot, lever, start: onSphere(e, pivot, lever), q0: scap ? g.qS : g.qC };
     return;
   }
   grab = { kind: 'arm', gh, hum: qRot(qInv(q), P.map((x, j) => x - gh[j])), x0: e.clientX, r0: st.r };
@@ -140,7 +144,7 @@ function dragBone(e) {
     return;
   }
   // scapula or clavicle: the grabbed point follows the pointer on a sphere round the joint
-  const c = grab.pivot, from = T3(grab.P).sub(T3(c)), to = onSphere(e, c, from.length()).sub(T3(c));
+  const c = grab.pivot, from = grab.start.clone().sub(T3(c)), to = onSphere(e, c, grab.lever).sub(T3(c));
   const turn = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize());
   const qT = qMul([turn.x, turn.y, turn.z, turn.w], grab.q0), G = { geo: GEO, ...gm };
   const a = grab.kind === 'scap' ? scapulaAngles(G, qT) : clavicleAngles(G, qT);
@@ -369,7 +373,7 @@ $('gmode').addEventListener('click', e => {
   if (b.dataset.m === 'manual' && gmode !== 'manual') Object.assign(gm, Gnow() ? Object.fromEntries(['ur', 'pt', 'ir', 'ce', 'cr'].map(k => [k, Math.round(Gnow()[k])])) : {});
   gmode = b.dataset.m; update();
 });
-['ur', 'pt', 'ir', 'ce', 'cr'].forEach(k => $('g' + k).addEventListener('input', e => { gm[k] = +e.target.value; update(); }));
+['ur', 'pt', 'ir', 'ce', 'cr'].forEach(k => { const el = $('g' + k); [el.min, el.max] = GIRDLE_RANGE[k]; el.addEventListener('input', e => { gm[k] = +e.target.value; update(); }); });
 function setSwim(on) {
   swim = on; $('swimBtn').setAttribute('aria-pressed', on); $('rollRow').hidden = !on;
   if (on) { az = 55 * D; el = 22 * D; dist = 150; } else { az = -35 * D; el = 10 * D; dist = 132; }

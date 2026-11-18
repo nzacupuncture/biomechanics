@@ -73,7 +73,11 @@ tests/               node:test suite
   Forearm/hand drag = elbow (`turnAbout` the posed elbow axis); scapula/clavicle drag = the grabbed
   point follows the pointer on a sphere round the AC/SC joint, and `scapulaAngles` /
   `clavicleAngles` (Gauss-Newton, tested round trip) turn the rotation back into girdle angles;
-  this switches the girdle to manual. The arm keeps its thoracohumeral pose.
+  this switches the girdle to manual. The arm keeps its thoracohumeral pose. The drag lever is the
+  whole bone (SC→AC, AC→inferior angle), so grabbing near a joint doesn't give huge angles.
+- **Girdle limits** (`GIRDLE_RANGE`, tested): clavicle elevation −10…35°, retraction −20…25° (typical
+  active SC ranges); scapula upward rotation −10…60°, posterior tilt −20…30°, internal rotation
+  −15…40° (winging, generous for pathology). Healthy rhythm stays inside them to 170°.
 - **Moment arm** = −dL/dθ in cm. Positive = the muscle drives elevation, horizontal adduction
   (rotation about the vertical axis, `h`) or external rotation. Horizontal values are hidden below 15° elevation.
 - **Shoulder girdle** (`pose.girdle = { geo, ur, pt, ir, ce, cr }`, `geo` = `data.girdle`): scapular
@@ -84,6 +88,10 @@ tests/               node:test suite
   `rhythm(e)`, linear Ludewig 2009 rates; shoulder sliders are then the arm relative to the trunk),
   **fixed** (sliders = glenohumeral angles) and **set by hand**. Shoulder moment arms are always about
   the GH joint (scapula held where it is while the humerus is perturbed).
+- **Protraction glides round the chest:** `girdle()` adds `protractionIR(cr)` (≈0.73° scapular internal
+  rotation per degree of clavicular protraction, fitted to keep the inferior angle on this ribcage), so
+  `ir` means rotation beyond that, i.e. winging (+). Applies to the rhythm too (Nazan's choice): the
+  scapula externally rotates ~10–15° over full elevation (Ludewig ~5°, McClure ~24°).
 - **Scapular muscles** (`g: 'scap'`, `ib` = insertion bone): trapezius upper/middle/lower, rhomboid
   minor/major, levator scapulae, serratus anterior upper/lower (wrap round the thorax as an upright
   cylinder, `wrap: 'thorax'`), pec minor. Moment arms: `urg` = upward rotation of the whole girdle
@@ -139,8 +147,9 @@ joint. Ranges are consistent with published cadaver and modelling data
 1. **Moment-arm steps (mostly fixed Nov 2026).** Wall-based cuff wrapping (decision 2) and deltoid
    ridges (decision 3) removed every length jump. Left: teres minor at 90° abduction with ~80° IR
    (fixed scapula; two equally short routes over/under the head swap), and with the scapula moving a
-   few end-range IR spots (infraspinatus lower ~80° IR, teres minor ~30°) and subscapularis lower
-   at ~70° flexion. Both `todo` tests (fixed and moving scapula) are the target; guard tests at 3 cm
+   few spots, worst the lower infraspinatus at 90° abduction with ~75° IR (3.6 cm; the moving-scapula
+   guard is 4 cm for this, agreed with Nazan). Restricting its held route moves the step to ~30° IR
+   (worse clinically), and tilting its side vector doesn't help, so neither is used. Both `todo` tests (fixed and moving scapula) are the target; guard tests at 3 cm
    must always pass. Restricting teres minor to the lower route fixes the fixed-scapula case but adds
    a 4 cm step at 90° abduction/50° IR with the scapula moving, so it was not kept.
    Tried and rejected: fixed-axis cylinders for cuff or deltoid (origins line up with the axis), a
@@ -150,8 +159,9 @@ joint. Ranges are consistent with published cadaver and modelling data
    they are the main upward-rotation force couple there. Causes: the real rotation axis migrates
    from near the root of the spine to the AC joint (Inman; Bagg & Forrest 1988), and each muscle is
    one centroid line. Fix ideas: a migrating UR axis, several serratus/trapezius fibres.
-3. **No scapulothoracic contact.** The rhythm is kinematic (Ludewig rates); the scapula drifts up to
-   ~6–8 cm off the ribcage at full elevation. Contact constraints were tried (elliptical thorax,
+3. **Limited scapulothoracic contact.** Protraction/retraction follows the chest wall (see
+   conventions), but upward rotation does not: the rhythm still lets the scapula drift several cm off
+   the ribcage at full elevation. Contact constraints were tried (elliptical thorax,
    solving IR+retraction, IR+tilt or IR+elevation): they hold contact only with unphysiological angles
    (e.g. 57–71° retraction), so they are not used.
 4. **Anterior deltoid in flexion** stays near zero (−0.1 to +0.3 cm) above ~90° with the scapula
