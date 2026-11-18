@@ -41,8 +41,8 @@ Good next requests once it's live:
 - **Presets** include serve cocking, freestyle catch, three freestyle underwater phases (catch with
   an early vertical forearm, pull, push) and three recovery phases (exit, mid-recovery, entry);
   high-elbow sprinter with up to 40° roll.
-- **Whole body** shows the rest of the skeleton faintly for reference (button to hide it); the right
-  hand moves with the forearm.
+- **Whole body** shows the rest of the skeleton for reference: *Faded* (solid but pale, the default),
+  *See-through* or *Hidden*; the right hand moves with the forearm.
 - **Draw a line** to add your own muscle line from the scapula, clavicle or ribcage to the humerus or
   forearm; lines on the forearm follow the elbow.
 

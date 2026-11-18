@@ -69,6 +69,19 @@ const humM = mesh(DATA.hum), foreM = mesh(DATA.fore), handM = mesh(DATA.hand), f
 foreG.position.copy(T3(EL.ep)); foreM.position.copy(T3(EL.ep).negate()); handM.position.copy(T3(EL.ep).negate()); foreG.add(foreM, handM);
 // whole-body reference skeleton (display only): faint, fixed to the trunk
 const skelM = mesh(DATA.skel, 0.4); body.add(skelM);
+// Whole body display: 'faded' = solid but pale (blended towards the viewer background, so nothing
+// shows through it), 'clear' = see-through, 'hidden'.
+const skelClear = skelM.material;
+const skelFaded = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 });
+const fadeColour = () => BONE.clone().lerp(new THREE.Color(css('--soft')), 0.55);
+let skelMode = 'faded';
+function setSkel(m) {
+  skelMode = m; skelM.visible = m !== 'hidden';
+  if (m === 'faded') skelFaded.color.copy(fadeColour());
+  skelM.material = m === 'faded' ? skelFaded : skelClear;
+  document.querySelectorAll('#skelMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
+  render();
+}
 const arm = new THREE.Group(); arm.add(humM, foreG); body.add(arm);
 const ctr = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), new THREE.MeshBasicMaterial({ color: 0x222222 })); body.add(ctr);
 const tubes = new THREE.Group(); body.add(tubes);
@@ -391,10 +404,7 @@ function setSwim(on) {
   place(); update();
 }
 $('swimBtn').onclick = () => setSwim(!swim);
-$('skelBtn').onclick = () => {
-  skelM.visible = !skelM.visible;
-  $('skelBtn').setAttribute('aria-pressed', skelM.visible); $('skelBtn').textContent = skelM.visible ? 'Whole body shown' : 'Whole body hidden'; render();
-};
+$('skelMode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSkel(b.dataset.m); });
 $('chips').innerHTML = GROUPS.map(g => `<button class="chip" data-g="${g[0]}" aria-pressed="true"><span class="sw" style="background:var(--${g[0]})"></span>${g[1]}</button>`).join('');
 $('chips').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; shown[b.dataset.g] = !shown[b.dataset.g]; b.setAttribute('aria-pressed', shown[b.dataset.g]); update(); });
 $('drawBtn').onclick = () => setDraw(!drawMode);
@@ -403,5 +413,5 @@ $('thoraxBtn').onclick = () => {
   $('thoraxBtn').setAttribute('aria-pressed', thorax.visible); $('thoraxBtn').textContent = thorax.visible ? 'Ribcage shown' : 'Ribcage hidden'; render();
 };
 addEventListener('resize', place);
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
-markPreset(0); place(); update();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setSkel(skelMode)); // re-fade for the new background
+markPreset(0); setSkel('faded'); place(); update();
