@@ -207,7 +207,13 @@ $('tb').addEventListener('click', e => {
   if (tr) { sel = sel === tr.dataset.id ? null : tr.dataset.id; update(); }
 });
 ['p', 'e', 'r'].forEach(k => $(k).addEventListener('input', e => { st[k] = +e.target.value; markPreset(null); update(); }));
-const PRE = [['Arm by side', { p: 0, e: 0, r: 0 }], ['Abduction 90°', { p: 0, e: 90, r: 0 }], ['Flexion 120°', { p: 90, e: 120, r: 0 }], ['Hand behind back', { p: -20, e: 25, r: -80 }], ['Serve cocking', { p: 0, e: 90, r: 85 }], ['Freestyle catch', { p: 80, e: 150, r: -15 }]];
+const PRE = [['Arm by side', { p: 0, e: 0, r: 0 }], ['Abduction 90°', { p: 0, e: 90, r: 0 }], ['Flexion 120°', { p: 90, e: 120, r: 0 }], ['Hand behind back', { p: -20, e: 25, r: -80 }], ['Serve cocking', { p: 0, e: 90, r: 85 }], ['Freestyle catch', { p: 80, e: 150, r: -15 }],
+  // Freestyle recovery, sprinter with a high-elbow recovery and ~40° body roll. Angles are the arm
+  // relative to the trunk (the roll itself is not shown), so roll is why little horizontal
+  // abduction is needed. Teaching estimates; Nazan to refine against her own video analysis.
+  ['Recovery A: exit', { p: -30, e: 45, r: -45 }],   // hand leaves at the hip, elbow leads up: behind the trunk, internally rotated
+  ['Recovery B: mid', { p: -15, e: 95, r: -50 }],    // elbow at its highest, hand passing the shoulder
+  ['Recovery C: entry', { p: 70, e: 140, r: -25 }]];  // hand reaching forward to enter in front of the shoulder
 $('presets').innerHTML = PRE.map((x, i) => `<button data-i="${i}" aria-pressed="false">${x[0]}</button>`).join('');
 function markPreset(i) { document.querySelectorAll('#presets button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === i)); }
 $('presets').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; Object.assign(st, PRE[+b.dataset.i][1]); markPreset(+b.dataset.i); update(); });
