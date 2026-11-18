@@ -1,6 +1,6 @@
 // Rendering and UI. All biomechanics lives in kinematics.js (unit-tested); this file only
 // draws what kinematics.js computes. THREE is loaded as a global (UMD r128) in index.html.
-import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, ghElevation } from './kinematics.js?v=dev';
+import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, ghElevation, scapulaAngles, clavicleAngles, turnAbout } from './kinematics.js?v=dev';
 
 const DATA = await (await fetch('data/shoulder.json?v=dev')).json();
 const HR = DATA.R;
@@ -97,11 +97,55 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointer */ } ptr.set(e.pointerId, [e.clientX, e.clientY]); down = [e.clientX, e.clientY]; moved = 0;
   if (ptr.size === 2) { grab = null; const a = [...ptr.values()]; pinch0 = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); }
   else if (!drawMode) {
-    const h = hitAt(e, [arm]);
-    // Grab the arm: remember the grabbed point in humerus coordinates (it moves with the humerus).
-    if (h) { const gh = ghNow(); grab = { gh, hum: qRot(qInv(rot(st.p, st.e, st.r)), body.worldToLocal(h.point.clone()).toArray().map((x, j) => x - gh[j])), x0: e.clientX, r0: st.r }; }
+    const h = hitAt(e, DRAGGABLE());
+    if (h) startGrab(h, e);
   }
 });
+const DRAGGABLE = () => [arm, scapM, clavM];
+const GRANGE = { ur: [-15, 65], pt: [-25, 45], ir: [-20, 40], ce: [-15, 45], cr: [-30, 40] };
+// What each bone does when dragged: humerus = shoulder (Shift = rotation); radius, ulna or hand =
+// elbow; scapula = rotates about the AC joint; clavicle = swings about the SC joint. Grabbing the
+// scapula or clavicle switches the scapula to "Set by hand", starting from where it was.
+function startGrab(h, e) {
+  const P = body.worldToLocal(h.point.clone()).toArray(), q = rot(st.p, st.e, st.r), gh = ghNow();
+  if (h.object === foreM || h.object === handM) { grab = { kind: 'elbow', P, k0: st.k }; return; }
+  if (h.object === scapM || h.object === clavM) {
+    if (gmode !== 'manual') { const G = Gnow(); Object.assign(gm, G ? Object.fromEntries(Object.keys(GRANGE).map(k => [k, G[k]])) : { ur: 0, pt: 0, ir: 0, ce: 0, cr: 0 }); gmode = 'manual'; }
+    const g = girdle({ geo: GEO, ...gm }), scap = h.object === scapM;
+    grab = { kind: scap ? 'scap' : 'clav', P, pivot: scap ? g.ac : GEO.SC, q0: scap ? g.qS : g.qC };
+    return;
+  }
+  grab = { kind: 'arm', gh, hum: qRot(qInv(q), P.map((x, j) => x - gh[j])), x0: e.clientX, r0: st.r };
+}
+// the pointer's ray in body coordinates
+function bodyRay(e) {
+  const r = cv.getBoundingClientRect();
+  ray.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1 }, cam);
+  const o = body.worldToLocal(ray.ray.origin.clone()), d = body.worldToLocal(ray.ray.origin.clone().add(ray.ray.direction)).sub(o).normalize();
+  return { o, d };
+}
+// where the ray meets a sphere (centre c, radius rad); if it misses, the nearest point on the sphere
+function onSphere(e, c, rad) {
+  const { o: o0, d } = bodyRay(e), o = o0.clone().sub(T3(c)), b = o.dot(d), disc = b * b - (o.lengthSq() - rad * rad);
+  const P = disc >= 0 ? o.clone().add(d.clone().multiplyScalar(-b - Math.sqrt(disc))) : o.clone().add(d.clone().multiplyScalar(-b)).setLength(rad);
+  return P.add(T3(c));
+}
+function dragBone(e) {
+  if (grab.kind === 'elbow') { // pointer projected onto the plane of elbow flexion
+    const q = rot(st.p, st.e, st.r), gh = ghNow(), E = qRot(q, EL.ep).map((x, j) => x + gh[j]), A = qRot(q, EL.ax);
+    const { o, d } = bodyRay(e), dn = d.dot(T3(A));
+    const t = Math.abs(dn) > 1e-3 ? T3(E).sub(o).dot(T3(A)) / dn : T3(E).sub(o).dot(d);
+    const P = o.clone().add(d.clone().multiplyScalar(t)).toArray();
+    st.k = Math.round(clamp(grab.k0 + turnAbout(A, grab.P.map((x, j) => x - E[j]), P.map((x, j) => x - E[j])), 0, 145));
+    return;
+  }
+  // scapula or clavicle: the grabbed point follows the pointer on a sphere round the joint
+  const c = grab.pivot, from = T3(grab.P).sub(T3(c)), to = onSphere(e, c, from.length()).sub(T3(c));
+  const turn = new THREE.Quaternion().setFromUnitVectors(from.normalize(), to.normalize());
+  const qT = qMul([turn.x, turn.y, turn.z, turn.w], grab.q0), G = { geo: GEO, ...gm };
+  const a = grab.kind === 'scap' ? scapulaAngles(G, qT) : clavicleAngles(G, qT);
+  for (const [k, x] of Object.entries(a)) gm[k] = clamp(x, ...GRANGE[k]);
+}
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const ghNow = () => { const G = Gnow(); return G ? girdle(G).gh : [0, 0, 0]; };
 // Drag: the grabbed point follows the pointer on a sphere round the GH centre. The humeral axis is
@@ -109,11 +153,7 @@ const ghNow = () => { const G = Gnow(); return G ? girdle(G).gh : [0, 0, 0]; };
 // unchanged). Shift-drag turns the arm about its own axis. Slider ranges are the limits.
 function dragArm(e) {
   if (e.shiftKey) { st.r = Math.round(clamp(grab.r0 + (e.clientX - grab.x0) * 0.6, -90, 90)); return; }
-  const r = cv.getBoundingClientRect();
-  ray.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1 }, cam);
-  const gh = T3(grab.gh), o = body.worldToLocal(ray.ray.origin.clone()).sub(gh), d = body.worldToLocal(ray.ray.origin.clone().add(ray.ray.direction)).sub(gh).sub(o).normalize();
-  const rad = Math.hypot(...grab.hum), b = o.dot(d), c = o.lengthSq() - rad * rad, disc = b * b - c;
-  const P = disc >= 0 ? o.clone().add(d.clone().multiplyScalar(-b - Math.sqrt(disc))) : o.clone().add(d.clone().multiplyScalar(-b)).setLength(rad);
+  const P = onSphere(e, grab.gh, Math.hypot(...grab.hum)).sub(T3(grab.gh));
   const q = rot(st.p, st.e, st.r), cur = T3(qRot(q, grab.hum)).normalize();
   const turn = new THREE.Quaternion().setFromUnitVectors(cur, P.normalize());
   const ax = T3(qRot(q, [0, -1, 0])).applyQuaternion(turn); // new humeral axis (shoulder to elbow)
@@ -122,9 +162,9 @@ function dragArm(e) {
   st.e = Math.round(clamp(ne, 0, 170));
 }
 cv.addEventListener('pointermove', e => {
-  if (!ptr.size && !drawMode) cv.style.cursor = hitAt(e, [arm]) ? 'move' : '';
+  if (!ptr.size && !drawMode) cv.style.cursor = hitAt(e, DRAGGABLE()) ? 'move' : '';
   if (!ptr.has(e.pointerId)) return;
-  if (grab && ptr.size === 1) { ptr.set(e.pointerId, [e.clientX, e.clientY]); moved += 7; dragArm(e); markPreset(null); update(); return; }
+  if (grab && ptr.size === 1) { ptr.set(e.pointerId, [e.clientX, e.clientY]); moved += 7; if (grab.kind === 'arm') dragArm(e); else dragBone(e); markPreset(null); update(); return; }
   const pr = ptr.get(e.pointerId), dx = e.clientX - pr[0], dy = e.clientY - pr[1];
   ptr.set(e.pointerId, [e.clientX, e.clientY]); moved += Math.abs(dx) + Math.abs(dy);
   if (ptr.size === 2) {
@@ -179,7 +219,7 @@ function setDraw(on) {
   drawMode = on; pending = null;
   $('drawBtn').setAttribute('aria-pressed', on); $('drawBtn').textContent = on ? 'Cancel drawing' : 'Draw a line';
   cv.classList.toggle('draw', on);
-  hint(on ? 'Tap a start point on the scapula, clavicle or ribcage' : 'Drag the arm to move it (Shift to rotate it); drag elsewhere to orbit; scroll to zoom');
+  hint(on ? 'Tap a start point on the scapula, clavicle or ribcage' : 'Drag a bone to move it (Shift-drag the humerus to rotate it); drag elsewhere to orbit; scroll to zoom');
   if (!on) update();
 }
 

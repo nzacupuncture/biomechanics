@@ -86,3 +86,16 @@ test('scapula moving: no moment-arm jump larger than 1 cm per 5° (target)', { t
     const j = worstJumpRhythm(l, 0, 'r', rotSweep); assert.ok(j.worst < 1, `${l.n} rotation: ${j.worst.toFixed(1)} at ${j.at}`);
   }
 });
+
+// Dragging: the inverse finds the angles that produced a pose (round trip).
+import { scapulaAngles, clavicleAngles, turnAbout } from '../app/js/kinematics.js';
+test('dragging: scapula and clavicle angles are recovered from their rotations', () => {
+  const want = { ur: 25, pt: -10, ir: 15, ce: 12, cr: -8 }, g = girdle({ geo, ...want });
+  const s = scapulaAngles({ geo, ur: 0, pt: 0, ir: 0 }, g.qS), c = clavicleAngles({ geo, ce: 0, cr: 0 }, g.qC);
+  for (const k of ['ur', 'pt', 'ir']) assert.ok(Math.abs(s[k] - want[k]) < 0.01, `${k} ${s[k]}`);
+  for (const k of ['ce', 'cr']) assert.ok(Math.abs(c[k] - want[k]) < 0.01, `${k} ${c[k]}`);
+});
+test('dragging: turning about an axis gives the signed angle (right-hand rule)', () => {
+  assert.ok(Math.abs(turnAbout([1, 0, 0], [0, 1, 0], [0, 0, 1]) - 90) < 1e-9);  // +y to +z about +x
+  assert.ok(Math.abs(turnAbout([1, 0, 0], [0, 0, 1], [0, 1, 0]) + 90) < 1e-9);
+});

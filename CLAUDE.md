@@ -70,6 +70,10 @@ tests/               node:test suite
 - **Dragging:** the grabbed point follows the pointer on a sphere round the GH centre; the humeral
   axis turns with it and is converted back to plane/elevation (rotation kept). Shift-drag = rotation.
   Slider ranges are the limits (plane −30…130°, so pure extension behind the trunk isn't reachable).
+  Forearm/hand drag = elbow (`turnAbout` the posed elbow axis); scapula/clavicle drag = the grabbed
+  point follows the pointer on a sphere round the AC/SC joint, and `scapulaAngles` /
+  `clavicleAngles` (Gauss-Newton, tested round trip) turn the rotation back into girdle angles;
+  this switches the girdle to manual. The arm keeps its thoracohumeral pose.
 - **Moment arm** = −dL/dθ in cm. Positive = the muscle drives elevation, horizontal adduction
   (rotation about the vertical axis, `h`) or external rotation. Horizontal values are hidden below 15° elevation.
 - **Shoulder girdle** (`pose.girdle = { geo, ur, pt, ir, ce, cr }`, `geo` = `data.girdle`): scapular

@@ -242,6 +242,37 @@ export function thoraxWrap(O, I, C) {
   return { L: Math.hypot(Lp, dh), pts };
 }
 
+// Inverse for dragging: girdle angles whose scapula (or clavicle) rotation best matches a target
+// quaternion. Gauss-Newton on the rotation difference, starting from the current angles; works
+// for any axes, so it can't disagree with girdle() about conventions. Twist the girdle can't do
+// (e.g. clavicle spin about its own axis) is simply left out.
+function fitGirdle(G, target, keys, which) {
+  let x = keys.map(k => G[k] || 0);
+  const resid = x => { const q = girdle({ ...G, ...Object.fromEntries(keys.map((k, i) => [k, x[i]])) })[which];
+    let d = qMul(target, qInv(q)); if (d[3] < 0) d = d.map(c => -c); return [2 * d[0], 2 * d[1], 2 * d[2]]; };
+  for (let it = 0; it < 20; it++) {
+    const r = resid(x), h = 1e-3, J = keys.map((_, i) => { const xp = x.slice(); xp[i] += h; const rp = resid(xp); return rp.map((c, j) => (c - r[j]) / h); });
+    // normal equations (J is n columns of 3-vectors): (JᵀJ) dx = -Jᵀ r
+    const n = keys.length, A = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => v.dot(J[i], J[j]))), b = J.map(c => -v.dot(c, r));
+    for (let i = 0; i < n; i++) A[i][i] += 1e-9;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) { const f = A[j][i] / A[i][i]; for (let k = i; k < n; k++) A[j][k] -= f * A[i][k]; b[j] -= f * b[i]; }
+    const dx = Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) { let t = b[i]; for (let k = i + 1; k < n; k++) t -= A[i][k] * dx[k]; dx[i] = t / A[i][i]; }
+    x = x.map((c, i) => c + dx[i]);
+    if (Math.hypot(...dx) < 1e-6) break;
+  }
+  return Object.fromEntries(keys.map((k, i) => [k, x[i]]));
+}
+export const scapulaAngles = (G, qTarget) => fitGirdle(G, qTarget, ['ir', 'ur', 'pt'], 'qS');
+export const clavicleAngles = (G, qTarget) => fitGirdle(G, qTarget, ['ce', 'cr'], 'qC');
+
+// Elbow angle from a pointer direction: signed angle, about the (posed) elbow axis, between two
+// directions from the elbow centre; dragging adds it to the elbow angle at the start of the drag.
+export function turnAbout(axis, from, to) {
+  const p = x => v.sub(x, v.mul(axis, v.dot(x, axis))), a = p(from), b = p(to);
+  return Math.atan2(v.dot([a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], axis), v.dot(a, b)) / D;
+}
+
 // Scapulohumeral rhythm: scapula and clavicle angles for a thoracohumeral elevation e (degrees),
 // linear fits to healthy-shoulder data (Ludewig et al. 2009, elevation in the scapular plane):
 // about 0.35° upward rotation, 0.12° posterior tilt, 0.1° clavicular elevation and 0.13°
