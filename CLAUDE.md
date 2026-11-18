@@ -38,8 +38,10 @@ cd pipeline && .venv/bin/python 03_build_shoulder.py                   # writes 
 ```
 app/                 the website (this folder is what GitHub Pages publishes)
   index.html, styles.css
-  js/kinematics.js   ALL biomechanics: joint angles, muscle paths, wrapping, moment arms (pure maths, tested)
-  js/main.js         rendering and UI only (three.js r128 as a global from cdnjs)
+  js/kinematics.js   ALL biomechanics: joint angles, muscle paths, wrapping, elbow, swimmer frame,
+                     moment arms (pure maths, tested)
+  js/main.js         rendering and UI only (three.js r128 as a global from cdnjs): sliders, presets,
+                     dragging the arm, Swimmer view
   data/shoulder.json bones (quantised meshes) + muscle lines, produced by the pipeline
 pipeline/            Python + Blender scripts that turn Z-Anatomy into app data (.cache/ and .venv/ are git-ignored)
 tests/               node:test suite
@@ -53,6 +55,19 @@ tests/               node:test suite
 - **Pose:** `p` plane of elevation (0 = abduction, 90 = flexion, >90 cross-body, <0 towards
   extension), `e` elevation, `r` axial rotation (+ = external). Rotation:
   `R = Ry(p) · Rz(−e) · Ry(−p) · Ry(−r)`: elevation in any plane with **no hidden roll**.
+- **Elbow:** pose `k` = elbow flexion in degrees (0 = straight). Lines that insert on the forearm carry
+  `el` (epicondylar axis `ax`, centre `ep`, built angle `k0` = 89.6°); without `k` the forearm stays at
+  `k0`, so shoulder values match the pilot. Triceps has `el.wrap`: it wraps round the back of the
+  elbow on a cylinder through its insertion (otherwise it turned into a flexor past ~85°).
+  Moment arm key `'k'`: + = flexes the elbow. No pronation/supination yet.
+- **Swimmer view / body roll:** `toSwimmer` lays the body prone (+X = travel, +Y = up, +Z = swimmer's
+  right) and rolls it about the trunk's centre line; roll + = right shoulder up. Water surface =
+  level of the back at no roll. Roll changes no muscle length (everything rolls with the trunk); the
+  app reports elbow and wrist height relative to the water and the wrist's position ahead of the
+  shoulder. `data.wrist` = distal forearm centroid (humerus-local, at k0).
+- **Dragging:** the grabbed point follows the pointer on a sphere round the GH centre; the humeral
+  axis turns with it and is converted back to plane/elevation (rotation kept). Shift-drag = rotation.
+  Slider ranges are the limits (plane −30…130°, so pure extension behind the trunk isn't reachable).
 - **Moment arm** = −dL/dθ in cm. Positive = the muscle drives elevation, horizontal adduction
   (rotation about the vertical axis, `h`) or external rotation. Horizontal values are hidden below 15° elevation.
 - **The scapula is fixed**, so slider angles are effectively glenohumeral angles. Say so in the UI.
@@ -113,7 +128,10 @@ abductor around 60° of abduction. Ranges are consistent with published cadaver 
    arms, e.g. anterior deltoid abduction +0.6 → −2.1 cm, or broke the posterior deltoid extension
    test depending on the ridge's direction; needs Nazan's view on the deltoid's true behaviour);
    a finite wall (lets the cuff slip to the wrong side). The guard in decision 7 is still in place.
-2. **Fixed scapula** (see roadmap step 3). Consequences: end-range positions are exaggerated, and in
+2. **Fixed scapula** (see roadmap step 3). The freestyle recovery presets show it clearly: to put the
+   hand where each phase is described, the fit needs ~165° elevation at entry and the −30° plane
+   limit at mid-recovery, because the shoulder alone does what scapular retraction and upward
+   rotation do in a real swimmer. Consequences: end-range positions are exaggerated, and in
    serve cocking (90° abduction, 85° ER) subscapularis shows a small external-rotation moment arm and
    barely lengthens, which is clinically wrong.
 3. **Anterior deltoid** flexion moment arm turns slightly negative above ~100° flexion; probably too early.

@@ -17,7 +17,7 @@
 <section class="viewer" aria-label="3D shoulder model">
 <canvas id="c"></canvas>
 <div class="pose"><div class="big" id="poseBig">0°</div><div class="sub" id="poseSub">Arm by the side</div></div>
-<div class="hint" id="hint">Drag to orbit, scroll or pinch to zoom</div>
+<div class="hint" id="hint">Drag the arm to move it (Shift to rotate it); drag elsewhere to orbit; scroll to zoom</div>
 <div class="malabel" id="malabel" hidden></div>
 <div class="presets" id="presets"></div>
 </section>
@@ -26,12 +26,14 @@
 <div class="sl"><label for="p">Plane of elevation</label><input type="range" id="p" min="-30" max="130" value="0"><output id="po">0°</output></div>
 <div class="sl"><label for="e">Elevation</label><input type="range" id="e" min="0" max="170" value="0"><output id="eo">0°</output></div>
 <div class="sl"><label for="r">Rotation (+ ER)</label><input type="range" id="r" min="-90" max="90" value="0"><output id="ro">0°</output></div>
+<div class="sl"><label for="k">Elbow flexion</label><input type="range" id="k" min="0" max="145" value="90"><output id="ko">90°</output></div>
+<div class="sl" id="rollRow" hidden><label for="roll">Body roll</label><input type="range" id="roll" min="-60" max="60" value="40"><output id="rollo">40°</output></div>
 </div>
 <div class="chips" id="chips"></div>
-<div class="row"><button id="drawBtn" aria-pressed="false">Draw a line</button><button id="thoraxBtn" aria-pressed="true">Ribcage shown</button></div>
+<div class="row"><button id="drawBtn" aria-pressed="false">Draw a line</button><button id="thoraxBtn" aria-pressed="true">Ribcage shown</button><button id="swimBtn" aria-pressed="false">Swimmer view</button></div>
 <div class="detail" id="detail"><h2>Pick a muscle</h2><p>Tap a row or a line to see its moment arm drawn from the joint centre.</p></div>
-<div class="tw"><table><thead><tr><th>Muscle</th><th title="Length change from arm-by-side">Length</th><th title="Moment arm for elevation">Elev</th><th title="Moment arm for horizontal adduction">Horiz</th><th title="Moment arm for external rotation">Rot</th></tr></thead><tbody id="tb"></tbody></table></div>
-<p class="note">Moment arms in cm. Positive means the pull drives elevation, horizontal adduction or external rotation; negative opposes it. Horizontal values appear once the arm is above 15°. Each muscle is one centroid line; cuff and deltoid wrap over the humeral head. The scapula does not move, so the sliders are glenohumeral angles: real 90° arm elevation is only about 60° at this joint.</p>
+<div class="tw"><table><thead><tr><th>Muscle</th><th title="Length change from arm-by-side">Length</th><th title="Moment arm for elevation">Elev</th><th title="Moment arm for horizontal adduction">Horiz</th><th title="Moment arm for external rotation">Rot</th><th title="Moment arm for elbow flexion">Elbow</th></tr></thead><tbody id="tb"></tbody></table></div>
+<p class="note">Moment arms in cm. Positive means the pull drives elevation, horizontal adduction, external rotation or elbow flexion; negative opposes it. Horizontal values appear once the arm is above 15°. Each muscle is one centroid line; cuff and deltoid wrap over the humeral head, triceps over the back of the elbow. The scapula does not move, so the sliders are glenohumeral angles: real 90° arm elevation is only about 60° at this joint. Swimmer view lays the body prone in the water: body roll changes where the arm is relative to the water, not any muscle length, because every muscle here rolls with the trunk.</p>
 </section>
 </main>
 <footer>Bone geometry: <a href="https://github.com/Z-Anatomy/Models-of-human-anatomy">Z-Anatomy, the libre 3D atlas of anatomy</a> (CC BY-SA 4.0), derived from BodyParts3D, The Database Center for Life Science (CC BY-SA 2.1 Japan). Meshes simplified, arm re-posed and attachment points derived for this tool. This tool is shared under CC BY-SA 4.0.</footer>

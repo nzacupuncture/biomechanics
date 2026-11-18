@@ -57,6 +57,10 @@ best = max(np.arange(-180, 180, 1.0), key=lambda a: (lambda d: d[2] / np.linalg.
 FL = R.from_rotvec(eax * np.radians(best))
 flex = lambda P: FL.apply(q0(P) - ep) + ep  # forearm-attached points
 print(f"elbow flexed by {best:.0f}° about the epicondylar axis")
+D_all = flex(np.vstack([B[k][0] for k in fore]))  # posed forearm vertices
+far = np.linalg.norm(D_all - ep, axis=1); wrist = D_all[far > far.max() - 3].mean(0)
+wd = (wrist - ep) / np.linalg.norm(wrist - ep)
+elbow_k0 = np.degrees(np.arccos(-wd[1]))  # flexion of the posed forearm (0 = hanging straight)
 
 # ---- 4. attachment points -----------------------------------------------------
 hum, scap = KD(F["Humerus.r"]), KD(F["Scapula.r"])
@@ -102,7 +106,7 @@ add("Coracobrachialis", "arm", m("Coracobrachialis muscle.or"), cb.mean(0))
 lb = near(F["Long head of biceps brachii.r"], hum, 0.35); groove = lb[(lb[:, 1] < c[1] - 1) & (lb[:, 1] > c[1] - 7)].mean(0)
 add("Biceps (long head)", "arm", m("Long head of biceps brachii.or"), m("Biceps brachii muscle.er"), ins="fore", via=groove)
 add("Biceps (short head)", "arm", near(F["Short head of biceps brachii.r"], scap, 0.4).mean(0), m("Biceps brachii muscle.er"), ins="fore")
-add("Triceps (long head)", "arm", m("Long head of triceps brachii.or"), m("Triceps brachii muscle.er"), ins="fore")
+add("Triceps (long head)", "arm", m("Long head of triceps brachii.or"), m("Triceps brachii muscle.er"), ins="fore", elwrap=1)
 
 r2 = lambda a: np.round(a, 2).tolist()
 L = []
@@ -111,6 +115,9 @@ for x in lines:
              via=None if "via" not in x else r2(q0(x["via"][None])[0]), wrap=x.get("wrap"))
     if "side" in x: d["side"] = x["side"]
     if "tub" in x: d["tub"] = x["tub"]
+    if x["ins"] == "fore":  # elbow: rotate about the epicondylar axis by (elbow angle - k0)
+        d["el"] = dict(ep=r2(ep), ax=np.round(eax, 4).tolist(), k0=round(float(elbow_k0), 1))
+        if x.get("elwrap"): d["el"]["wrap"] = x["elwrap"]  # triceps: wraps posteriorly at the elbow
     L.append(d)
 
 # ---- 5. footprints, quantise, write ---------------------------------------------
@@ -143,6 +150,6 @@ def pack(keys, tf, colour=True):
 static = [k for k in B if k not in ("Humerus.r", "Radius.r", "Ulna.r", "Scapula.r", "Clavicle.r")]
 out = dict(girdle=pack(["Scapula.r", "Clavicle.r"], fix), thorax=pack(static, fix), hum=pack(["Humerus.r"], q0),
            fore=pack(fore, flex, colour=False), lines=L, R=round(float(r), 2),
-           ep=r2(ep), me=r2(me), le=r2(le))
+           ep=r2(ep), me=r2(me), le=r2(le), wrist=r2(wrist))
 json.dump(out, open(OUT, "w"))
 print(f"wrote {OUT}: {len(L)} muscle lines")

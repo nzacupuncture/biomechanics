@@ -20,6 +20,19 @@ Good next requests once it's live:
 - "Add scapulohumeral rhythm (roadmap step 3)."
 - "Set the app up for several joints, then add the hip."
 
+## Using it
+
+- **Sliders** set the shoulder (plane of elevation, elevation, rotation) and the elbow.
+- **Drag the arm** in the 3D view to move it; hold **Shift** while dragging to rotate it about its
+  long axis. Drag anywhere else to turn the view; scroll to zoom.
+- **Swimmer view** lays the body face down in the water with a **Body roll** slider, and tells you
+  where the elbow and wrist are relative to the water and the shoulder. Roll doesn't change muscle
+  lengths (the muscles roll with the trunk); it changes where the arm is in the water.
+- **Presets** include serve cocking, freestyle catch and three freestyle recovery phases (exit,
+  mid-recovery, entry; high-elbow sprinter, 40° roll).
+- **Draw a line** to add your own muscle line from the scapula, clavicle or ribcage to the humerus or
+  forearm; lines on the forearm follow the elbow.
+
 ## Running it yourself
 
 ```bash

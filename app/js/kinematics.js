@@ -152,12 +152,72 @@ export function wrapWall(line) {
   return WALLS.get(line);
 }
 
+// ---- elbow -------------------------------------------------------------------
+// Muscles inserting on the forearm (biceps, triceps) carry `el`: the elbow's flexion axis
+// (epicondyle to epicondyle, humerus-local), its centre, and k0, the flexion the forearm was
+// built at (89.6°). Elbow angle k: 0 = straight, + = flexion. Without k the forearm stays at k0,
+// so every shoulder value is exactly as in the pilot.
+export function forearm(line, k) {
+  if (!line.el || k === undefined || k === null) return line.i;
+  const { ep, ax, k0 } = line.el, q = qAxis(ax, (k - k0) * D);
+  return v.add(ep, qRot(q, v.sub(line.i, ep)));
+}
+// Triceps (el.wrap): the tendon wraps round the back of the distal humerus and olecranon, modelled
+// as a cylinder on the elbow axis passing through the insertion, always wound round the posterior
+// side. Seen along the axis this is the usual tangent-plus-arc; unrolled, L = hypot(planar, rise).
+// Without it the straight line passed in front of the axis beyond ~85° flexion and the triceps
+// turned into a flexor.
+export function elbowWrap(O, I, el) {
+  const A = el.ax, rel = x => v.sub(x, el.ep), o = rel(O), i = rel(I);
+  const oh = v.dot(o, A), ih = v.dot(i, A), Op = v.sub(o, v.mul(A, oh)), Ip = v.sub(i, v.mul(A, ih));
+  const ro = v.len(Op), r = v.len(Ip), straight = { L: v.dist(O, I), pts: [O, I] };
+  if (ro <= r) return straight;
+  const a1 = Math.acos(r / ro), cr = [Op[1] * Ip[2] - Op[2] * Ip[1], Op[2] * Ip[0] - Op[0] * Ip[2], Op[0] * Ip[1] - Op[1] * Ip[0]];
+  let phi = el.wrap * Math.atan2(v.dot(cr, A), v.dot(Op, Ip));
+  if (phi < -a1) phi += 2 * Math.PI; // cut only where it would touch the front: never in range
+  const arc = phi - a1;
+  if (arc <= 0) return straight;
+  const t1 = Math.sqrt(ro * ro - r * r), Lp = t1 + r * arc, dh = ih - oh;
+  const e1 = v.mul(Op, 1 / ro), e2 = v.mul([A[1] * e1[2] - A[2] * e1[1], A[2] * e1[0] - A[0] * e1[2], A[0] * e1[1] - A[1] * e1[0]], el.wrap);
+  const pts = [O], n = Math.max(3, Math.ceil(arc / 0.15));
+  for (let k = 0; k <= n; k++) {
+    const f = a1 + arc * k / n, h = oh + dh * (t1 + r * (f - a1)) / Lp;
+    pts.push(v.add(el.ep, v.add(v.add(v.mul(e1, r * Math.cos(f)), v.mul(e2, r * Math.sin(f))), v.mul(A, h))));
+  }
+  pts.push(I);
+  return { L: Math.hypot(Lp, dh), pts };
+}
+
+// The same rotation for any forearm point (used to draw the forearm and to place the wrist).
+export const elbowQ = (el, k) => qAxis(el.ax, (k - el.k0) * D);
+
+// ---- swimmer frame ----------------------------------------------------------
+// Turns the upright anatomical model into a prone swimmer and rolls the body about the trunk's
+// long axis. World frame: +X = direction of travel (head), +Y = up out of the water,
+// +Z = the swimmer's right. Roll + = right shoulder rising (rolled onto the left side), as in a
+// right-arm recovery. pivot = a point on the roll axis (the trunk's centre line).
+// Body roll does not change any muscle length: every muscle here rolls with the trunk. What it
+// changes is where the arm is relative to the water for the same shoulder angles.
+const PRONE = (() => { // body x (medial) -> -Z, body y (up) -> +X, body z (anterior) -> -Y
+  const m = [[0, 1, 0], [0, 0, -1], [-1, 0, 0]]; // rows: world X, Y, Z in body terms
+  const tr = m[0][0] + m[1][1] + m[2][2], w = Math.sqrt(Math.max(0, 1 + tr)) / 2;
+  if (w > 1e-6) return [(m[2][1] - m[1][2]) / (4 * w), (m[0][2] - m[2][0]) / (4 * w), (m[1][0] - m[0][1]) / (4 * w), w];
+  const x = Math.sqrt(Math.max(0, 1 + m[0][0] - m[1][1] - m[2][2])) / 2;
+  return [x, (m[0][1] + m[1][0]) / (4 * x), (m[0][2] + m[2][0]) / (4 * x), (m[2][1] - m[1][2]) / (4 * x)];
+})();
+export const swimQ = roll => qMul(qAxis([1, 0, 0], -roll * D), PRONE);
+export const toSwimmer = (P, roll, pivot) => qRot(swimQ(roll), v.sub(P, pivot));
+
 // ---- muscle path ------------------------------------------------------------
 // line: { o: fixed point (thorax/scapula/clavicle frame), i: humerus-local point,
 //         via?: humerus-local fixed via point (long head of biceps in the groove),
 //         wrap?: 'ins' | 'delt' | 'tub', side?: humerus-local direction, tub?: humerus-local point }
-export function path(line, q, headR) {
-  const O = line.o, I = qRot(q, line.i);
+export function path(line, q, headR, elbow) {
+  const O = line.o, I = qRot(q, forearm(line, elbow));
+  if (line.el && line.el.wrap) { // triceps: wrap at the elbow, worked out in the humerus frame
+    const P = elbowWrap(qRot(qInv(q), O), forearm(line, elbow), line.el);
+    return { L: P.L, pts: P.pts.map((x, k) => (k === 0 ? O : qRot(q, x))) };
+  }
   if (line.via) {
     const W = qRot(q, line.via);
     return { L: v.dist(O, W) + v.dist(W, I), pts: [O, W, I] };
@@ -176,16 +236,20 @@ export function path(line, q, headR) {
   return { L: v.dist(O, I), pts: [O, I] };
 }
 
-export const length = (line, pose, headR) => path(line, rot(pose.p, pose.e, pose.r, pose.h || 0), headR).L;
+export const length = (line, pose, headR) => path(line, rot(pose.p, pose.e, pose.r, pose.h || 0), headR, pose.k).L;
 
 // Moment arm (cm) = -dL/dθ.  Positive = drives elevation / horizontal adduction / external rotation.
 // k: 'e' elevation, 'p' horizontal (perturbs h: pure rotation about the vertical axis), 'r' rotation.
 // Uses one-sided differences: where the wrap switches route the length jumps, and a central
 // difference across that jump would give absurd values (100+ cm). In that case the smaller
 // one-sided slope is used. This is a guard, not a fix: see CLAUDE.md "Known issues" #1.
+// k: 'e' elevation, 'p' horizontal, 'r' rotation, or 'k' elbow (+ = flexes the elbow).
 export function momentArm(line, pose, k, headR) {
+  if (k === 'k' && !line.el) return 0; // does not cross the elbow
   const key = k === 'p' ? 'h' : k, step = 1;
-  const at = dx => { const s = { ...pose, h: 0 }; s[key] += dx; return length(line, s, headR); };
+  const base = { ...pose, h: 0 };
+  if (k === 'k' && (base.k === undefined || base.k === null)) base.k = line.el.k0;
+  const at = dx => { const s = { ...base }; s[key] += dx; return length(line, s, headR); };
   const L0 = at(0), fwd = -(at(step) - L0) / (step * D), back = -(L0 - at(-step)) / (step * D);
   if (Math.abs(fwd - back) > 2) return Math.abs(fwd) < Math.abs(back) ? fwd : back;
   return (fwd + back) / 2;
