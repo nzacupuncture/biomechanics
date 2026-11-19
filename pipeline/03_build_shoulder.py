@@ -208,10 +208,33 @@ r1 = lambda a: np.round(a, 1).tolist()
 UPPER = np.vstack([F[k] for k in ["First rib.r", "Second rib.r", "Third rib.r", "Costal cartilage of first rib.r",
                                   "Costal cartilage of second rib.r", "Costal cartilage of third rib.r", "Manubrium of sternum"] if k in F])
 away = np.linalg.norm(CLAV - SC, axis=1) > 3                          # not the SC joint itself, where they touch
-cl_pts = CLAV[away][rng.choice(int(away.sum()), min(120, int(away.sum())), replace=False)]
-up_pts = UPPER[rng.choice(len(UPPER), min(1500, len(UPPER)), replace=False)]
-print(f"clavicle to upper ribs at rest: min {KD(up_pts).query(cl_pts)[0].min():.2f} cm")
-girdle_extra = dict(ribs=r1(fix(rib_pts)), contact=r1(fix(scap_pts)), clavPts=r1(fix(cl_pts)), upperRibs=r1(fix(up_pts)))
+cl_pts = CLAV[away][rng.choice(int(away.sum()), min(150, int(away.sum())), replace=False)]
+# upper ribcage surface with outward normals (from the full-resolution triangles), so the app can tell
+# a clavicle point lying ON a rib (sliding over it) from one INSIDE it
+FULLT = pickle.load(open(".cache/shoulder_full.pkl", "rb"))
+surf_p, surf_n = [], []
+for k in ["First rib.r", "Second rib.r", "Third rib.r", "Costal cartilage of first rib.r", "Costal cartilage of second rib.r",
+          "Costal cartilage of third rib.r", "Manubrium of sternum"]:
+    if k not in FULLT: continue
+    V = F[k]; T = FULLT[k][1]
+    fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+    vn = np.zeros_like(V); np.add.at(vn, T[:, 0], fn); np.add.at(vn, T[:, 1], fn); np.add.at(vn, T[:, 2], fn)
+    vn /= np.linalg.norm(vn, axis=1, keepdims=True) + 1e-12
+    # orient outwards using the mesh's signed volume (negative = triangles wound inside-out); the
+    # "away from the centroid" rule fails on curved bones like ribs
+    vol = np.sum(np.einsum('ij,ij->i', V[T[:, 0]], np.cross(V[T[:, 1]], V[T[:, 2]]))) / 6
+    if vol < 0: vn = -vn
+    print(f"  {k}: signed volume {vol:.1f} cm3")
+    surf_p.append(V); surf_n.append(vn)
+SP, SN = np.vstack(surf_p), np.vstack(surf_n)
+near_cl = KD(SP).query(CLAV)[0] < 4                                    # only surface the clavicle can reach
+keep = np.where(KD(CLAV).query(SP)[0] < 6)[0]
+keep = keep[rng.choice(len(keep), min(3500, len(keep)), replace=False)]
+up_pts, up_nrm = SP[keep], SN[keep]
+dd, ii = KD(up_pts).query(cl_pts)
+side0 = np.sum((cl_pts - up_pts[ii]) * up_nrm[ii], axis=1)
+print(f"clavicle vs upper-rib surface at rest: nearest {dd.min():.2f} cm; most-inside point {side0.min():.2f} cm (negative = inside)")
+girdle_extra = dict(ribs=r1(fix(rib_pts)), contact=r1(fix(scap_pts)), clavPts=r1(fix(cl_pts)), upperRibs=r1(fix(up_pts)), upperNormals=np.round(up_nrm, 2).tolist())
 girdle = dict(TC=r2(fix(TC[None])[0]), TA=r2(np.array(TA)), SC=r2(fix(SC[None])[0]), AC=r2(fix(AC[None])[0]), AI=r2(fix(AI[None])[0]), SA=r2(fix(SA[None])[0]), TS=r2(fix(TS[None])[0]),
               AA=r2(fix(AA[None])[0]), CP=r2(fix(CP[None])[0]), X=np.round(Xs, 4).tolist(), Y=np.round(Ys, 4).tolist(), Z=np.round(Zs, 4).tolist())
 

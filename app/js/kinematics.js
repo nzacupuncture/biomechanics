@@ -330,20 +330,34 @@ export function scapulaContact(G) {
   lift.sort((a, b) => a - b);
   return { inside, lift: lift[Math.floor(lift.length / 2)] };
 }
-// Clavicle against the upper ribcage (geo.clavPts along the clavicle, geo.upperRibs: ribs 1-3, their
-// cartilages, manubrium): smallest gap in cm (~0.45 at rest; it slides over the first rib in retraction).
-export function clavicleClearance(G) {
-  const geo = G.geo, g = girdle(G); let m = Infinity;
-  for (const s of geo.clavPts) { const p = g.clav(s); for (const q of geo.upperRibs) { const dd = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2; if (dd < m) m = dd; } }
-  return Math.sqrt(m);
+// Clavicle against the upper ribcage: geo.upperRibs = surface points of ribs 1-3, their cartilages and the
+// manubrium with outward normals (geo.upperNormals). For each clavicle point (geo.clavPts) the nearest
+// surface point within 1.5 cm decides: on its outward side = outside (it may slide over the rib, as in
+// retraction); on its inward side = inside the bone. Returns the deepest inside (cm, 0 = none).
+export function clavicleInside(G) {
+  const geo = G.geo, g = girdle(G), P = geo.upperRibs, N = geo.upperNormals; let worst = 0;
+  for (const s of geo.clavPts) {
+    const p = g.clav(s); let d2 = Infinity;
+    for (let i = 0; i < P.length; i++) { const q = P[i], dx = p[0] - q[0], dy = p[1] - q[1], dz = p[2] - q[2], dd = dx * dx + dy * dy + dz * dz; if (dd < d2) d2 = dd; }
+    if (d2 > 2.25) continue;
+    // all surface points about as near as the nearest must agree it's inside: where two surfaces meet
+    // (rib and cartilage) or at thin edges, nearest-point normals alone disagree
+    const lim = (Math.sqrt(d2) + 0.3) ** 2; let best = -Infinity;
+    for (let i = 0; i < P.length; i++) {
+      const q = P[i], dx = p[0] - q[0], dy = p[1] - q[1], dz = p[2] - q[2];
+      if (dx * dx + dy * dy + dz * dz <= lim) { const n = N[i], side = dx * n[0] + dy * n[1] + dz * n[2]; if (side > best) best = side; }
+    }
+    if (best < -worst) worst = -best;
+  }
+  return worst;
 }
 // The scapula may not sink into the ribs (> 0.5 cm), nor lift further off than the rhythm itself does
-// at full elevation (median 6.5 cm; severe winging lifts the medial border ~5 cm); the clavicle must stay
-// clear of the upper ribs. These are checked step by step in the app, so nothing can jump through a rib.
+// at full elevation (median 6.5 cm; severe winging lifts the medial border ~5 cm); the clavicle may not
+// go inside the upper ribs (> 1 mm). These are checked step by step in the app, so nothing can jump through a rib.
 export const girdlePossible = G => {
   if (!G || !G.geo.ribs) return true;
   const c = scapulaContact(G);
-  return c.inside <= 0.5 && c.lift <= 6.5 && (!G.geo.clavPts || clavicleClearance(G) >= 0.05);
+  return c.inside <= 0.5 && c.lift <= 6.5 && (!G.geo.upperNormals || clavicleInside(G) <= 0.1);
 };
 export const armPossible = (pose, data) => pose.e <= maxElevation(pose.p) + 1e-9 && trunkClearance(pose, data) >= 1 && girdlePossible(pose.girdle);
 

@@ -66,9 +66,12 @@ tests/               node:test suite
   `girdlePossible` (part of `armPossible`): against the real ribs (`girdle.ribs` sample and
   `girdle.contact` scapula points, written by the pipeline) the scapula may not sink in > 0.5 cm, nor lift
   off further than the rhythm does at full elevation (median 6.5 cm). Winging slider −10…20°. The
-  clavicle must stay ≥ 0.05 cm from the upper ribs (`girdle.clavPts` / `upperRibs`): in this skeleton it
-  rests on the first rib, so pure depression stops ~4° and pure retraction ~12° (costoclavicular space);
-  with elevation (as in the rhythm) retraction goes further. The app approaches every change in ≤ 1°
+  clavicle may not go inside the upper ribs (`clavicleInside` ≤ 1 mm): `girdle.upperRibs` + `upperNormals`
+  (ribs 1-3, cartilages, manubrium, outward normals from the full meshes) against `girdle.clavPts`; a
+  point is inside only if every surface point within 3 mm of the nearest agrees (junctions/thin edges).
+  In this skeleton the clavicle rests on the first rib, so pure depression stops ~7° and pure retraction
+  ~11° (costoclavicular space); with elevation (as in the rhythm) retraction goes further. (A first,
+  point-gap version let the clavicle slip between rib sample points; don't go back to it.) The app approaches every change in ≤ 1°
   steps (`attempt()` in main.js) and stops at the last possible position, so nothing jumps through a rib.
 - **Pose:** `p` plane of elevation (−90 = pure extension, 0 = abduction, 90 = flexion, >90 cross-body, <0 towards
   extension), `e` elevation, `r` axial rotation (+ = external). Rotation:
