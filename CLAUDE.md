@@ -63,6 +63,10 @@ tests/               node:test suite
   slider, drag or girdle change that breaks this. `rhythmFor(p, e)` fades the scapular rhythm out
   behind p = −30° (extension doesn't upwardly rotate the scapula). Internal rotation at the side stops
   ~45–50° (forearm meets the trunk; slightly conservative because the abdomen is narrower than ribs).
+  `headNeckClearance` (part of `armPossible`): `data.body` = spheres for cranium and face and an upright
+  cylinder round the neck (pipeline, from the skull bones and C1-C7); humerus, elbow and forearm must stay
+  outside (forearm/hand points get 2.5-3 cm leeway, since the spheres overshoot the back of the skull and
+  hand-behind-head must be allowed). The trunk check only covers below shoulder level.
   `girdlePossible` (part of `armPossible`): against the real ribs (`girdle.ribs` sample and
   `girdle.contact` scapula points, written by the pipeline) the scapula may not sink in > 0.5 cm, nor lift
   off further than the rhythm does at full elevation (median 6.5 cm). Winging slider −10…20°. The

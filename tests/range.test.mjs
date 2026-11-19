@@ -51,3 +51,12 @@ test('clavicle: it cannot be driven down or back through the first rib', () => {
 test('clavicle: elevation, protraction and moderate retraction stay possible', () => {
   for (const G of [{ ce: 30 }, { cr: -20 }, { cr: 10 }, { ce: 10, cr: 10 }, { ce: 17, cr: 22 }]) assert.ok(girdlePossible({ geo, ...G }), JSON.stringify(G));
 });
+
+// Head and neck as obstacles (data.body): the arm may pass beside the head and the hand may rest on it,
+// but the elbow or forearm may not go through the head or neck.
+test('head: streamlined arm beside the head and hand behind the head are possible', () => {
+  assert.ok(can(90, 170, 0, 0) && can(0, 150, 80, 140) && can(120, 170, -10, 90));
+});
+test('head: the forearm cannot pass through the head (arm across the face, elbow bent)', () => {
+  assert.ok(!can(110, 120, -90, 130) && !can(70, 150, -45, 130));
+});

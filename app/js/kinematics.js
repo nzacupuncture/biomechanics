@@ -359,7 +359,25 @@ export const girdlePossible = G => {
   const c = scapulaContact(G);
   return c.inside <= 0.5 && c.lift <= 6.5 && (!G.geo.upperNormals || clavicleInside(G) <= 0.1);
 };
-export const armPossible = (pose, data) => pose.e <= maxElevation(pose.p) + 1e-9 && trunkClearance(pose, data) >= 1 && girdlePossible(pose.girdle);
+// Head and neck (data.body: spheres for cranium and face, an upright cylinder round the neck): the
+// humerus, forearm and hand must stay outside them. Returns the smallest margin in cm (< 0 = inside).
+export function headNeckClearance(pose, data) {
+  const b = data.body; if (!b) return Infinity;
+  const el = data.lines.find(l => l.el).el, q = rot(pose.p, pose.e, pose.r);
+  const gh = pose.girdle ? girdle(pose.girdle).gh : [0, 0, 0], at = P => v.add(qRot(q, P), gh);
+  const E = at(el.ep), W = at(v.add(el.ep, qRot(elbowQ(el, pose.k ?? el.k0), v.sub(data.wrist, el.ep)))), Hd = v.add(W, v.mul(v.sub(W, E), 0.35));
+  // forearm and hand points get 2.5-3 cm leeway: the spheres overshoot the back of the skull by about that
+  // much, and a hand resting on the head (hand behind head) is a real position; an elbow or forearm
+  // through the head is still refused (those go 6 cm and more inside)
+  const pts = [0.4, 0.7, 1].map(t => [v.add(gh, v.mul(v.sub(E, gh), t)), 0]).concat([0.5, 1].map(t => [v.add(E, v.mul(v.sub(W, E), t)), 2.5]), [[Hd, 3]]);
+  let m = Infinity;
+  for (const [P, slack] of pts) {
+    for (const [c, r] of b.spheres) m = Math.min(m, v.dist(P, c) - r + slack);
+    const n = b.neck; if (P[1] >= n.y0 && P[1] <= n.y1) m = Math.min(m, Math.hypot(P[0] - n.x, P[2] - n.z) - n.r + slack);
+  }
+  return m;
+}
+export const armPossible = (pose, data) => pose.e <= maxElevation(pose.p) + 1e-9 && trunkClearance(pose, data) >= 1 && headNeckClearance(pose, data) >= 0 && girdlePossible(pose.girdle);
 
 // Glenohumeral elevation: angle between the humeral shaft and where it would hang if the scapula
 // carried it (the scapula's own "arm by side" direction).

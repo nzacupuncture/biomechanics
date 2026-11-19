@@ -275,8 +275,21 @@ HAND = ("Scaphoid", "Lunate", "Triquetr", "Pisiform", "Trapezium", "Trapezoid", 
 hand_r = [k for k in CTX if k.endswith(".r") and any(h in k for h in HAND)]
 body_ref = [k for k in CTX if k not in hand_r]
 girdle.update(girdle_extra)
+# Head and neck as obstacles for the arm (the trunk check only covers below shoulder level):
+# two spheres (cranium, face) fitted to the skull bones, and a cylinder round the cervical spine,
+# set a little in front of the vertebrae where the soft tissue of the neck is.
+HEADB = np.vstack([F["Occipital bone"]] + [CTX[k][0] for k in CTX if k.startswith(("Frontal bone", "Parietal bone", "Temporal bone"))])
+FACEB = np.vstack([CTX[k][0] for k in CTX if k.startswith(("Maxilla", "Mandible", "Zygomatic"))])
+hc, fc = HEADB.mean(0), (FACEB.min(0) + FACEB.max(0)) / 2               # face: middle of its bounding box
+hr = float(np.quantile(np.linalg.norm(HEADB - hc, axis=1), 0.9)) + 1.0      # + scalp
+fr = 0.45 * float(np.ptp(FACEB, axis=0).max()) + 0.5                       # covers forehead to chin
+CVB = np.vstack([F[k] for k in ["Atlas (C1)", "Axis (C2)"] + [f"Vertebra C{i}" for i in range(3, 8)] if k in F])
+neck = dict(x=round(float(CVB[:, 0].mean() - c[0]), 1), z=round(float(CVB[:, 2].mean() - c[2] + 2.0), 1),
+            y0=round(float(CVB[:, 1].min() - c[1]), 1), y1=round(float(CVB[:, 1].max() - c[1]), 1), r=6.0)
+body = dict(spheres=[[r2(fix(hc[None])[0]), round(hr, 1)], [r2(fix(fc[None])[0]), round(fr, 1)]], neck=neck)
+print("head/neck obstacles:", body)
 out = dict(scap=pack(["Scapula.r"], fix), clav=pack(["Clavicle.r"], fix), thorax=pack(static, fix), hum=pack(["Humerus.r"], q0),
-           skel=pack(body_ref, fix, colour=False), hand=pack(hand_r, flex, colour=False),
+           skel=pack(body_ref, fix, colour=False), hand=pack(hand_r, flex, colour=False), body=body,
            fore=pack(fore, flex, colour=False), lines=L, R=round(float(r), 2), girdle=girdle,
            ep=r2(ep), me=r2(me), le=r2(le), wrist=r2(wrist))
 json.dump(out, open(OUT, "w"))
