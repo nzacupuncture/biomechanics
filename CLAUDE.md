@@ -63,6 +63,13 @@ tests/               node:test suite
   slider, drag or girdle change that breaks this. `rhythmFor(p, e)` fades the scapular rhythm out
   behind p = −30° (extension doesn't upwardly rotate the scapula). Internal rotation at the side stops
   ~45–50° (forearm meets the trunk; slightly conservative because the abdomen is narrower than ribs).
+  `girdlePossible` (part of `armPossible`): against the real ribs (`girdle.ribs` sample and
+  `girdle.contact` scapula points, written by the pipeline) the scapula may not sink in > 0.5 cm, nor lift
+  off further than the rhythm does at full elevation (median 6.5 cm). Winging slider −10…20°. The
+  clavicle must stay ≥ 0.05 cm from the upper ribs (`girdle.clavPts` / `upperRibs`): in this skeleton it
+  rests on the first rib, so pure depression stops ~4° and pure retraction ~12° (costoclavicular space);
+  with elevation (as in the rhythm) retraction goes further. The app approaches every change in ≤ 1°
+  steps (`attempt()` in main.js) and stops at the last possible position, so nothing jumps through a rib.
 - **Pose:** `p` plane of elevation (−90 = pure extension, 0 = abduction, 90 = flexion, >90 cross-body, <0 towards
   extension), `e` elevation, `r` axial rotation (+ = external). Rotation:
   `R = Ry(p) · Rz(−e) · Ry(−p) · Ry(−r)`: elevation in any plane with **no hidden roll**.
@@ -168,9 +175,10 @@ joint. Ranges are consistent with published cadaver and modelling data
    they are the main upward-rotation force couple there. Causes: the real rotation axis migrates
    from near the root of the spine to the AC joint (Inman; Bagg & Forrest 1988), and each muscle is
    one centroid line. Fix ideas: a migrating UR axis, several serratus/trapezius fibres.
-3. **Limited scapulothoracic contact.** Protraction/retraction follows the chest wall (see
-   conventions), but upward rotation does not: the rhythm still lets the scapula drift several cm off
-   the ribcage at full elevation. Contact constraints were tried (elliptical thorax,
+3. **Limited scapulothoracic contact.** Protraction/retraction follows the chest wall and impossible
+   hand-set positions are refused (see conventions), but the rhythm still lets the scapula drift off
+   the real ribs: median ~3 cm at 90°, ~6 cm at full elevation. Correcting its rotation (IR and/or tilt)
+   doesn't fix it: the drift comes from where the clavicle/AC joint carry it (ribcage narrows above). Contact constraints were tried (elliptical thorax,
    solving IR+retraction, IR+tilt or IR+elevation): they hold contact only with unphysiological angles
    (e.g. 57–71° retraction), so they are not used.
 4. **Anterior deltoid in flexion** stays near zero (−0.1 to +0.3 cm) above ~90° with the scapula

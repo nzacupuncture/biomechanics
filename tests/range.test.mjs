@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { armPossible, rhythmFor, maxElevation } from '../app/js/kinematics.js';
+import { armPossible, rhythmFor, maxElevation, girdlePossible, rhythm } from '../app/js/kinematics.js';
 
 const data = JSON.parse(fs.readFileSync(new URL('../app/data/shoulder.json', import.meta.url)));
 const geo = data.girdle;
@@ -27,4 +27,26 @@ test('range: extension is limited to about 60°', () => {
 });
 test('range: no scapular rhythm in pure extension', () => {
   assert.equal(rhythmFor(-90, 50).ur, 0);
+});
+
+test('scapula: the healthy rhythm keeps it out of the ribs and within lift-off limits at every elevation', () => {
+  for (let e = 0; e <= 170; e += 10) assert.ok(girdlePossible({ geo, ...rhythm(e) }), `e=${e}`);
+});
+test('scapula: protraction, retraction and moderate winging are possible', () => {
+  for (const G of [{ cr: -20 }, { cr: 25 }, { ir: 20 }, { ur: 40 }, { ce: 30 }]) assert.ok(girdlePossible({ geo, ...G }), JSON.stringify(G));
+});
+test('scapula: it cannot sink into the ribs (posterior tilt or negative winging on their own)', () => {
+  assert.ok(!girdlePossible({ geo, pt: 25 }) && !girdlePossible({ geo, ir: -15 }));
+});
+test('scapula: it cannot fly off the chest (heavy winging with protraction)', () => {
+  assert.ok(!girdlePossible({ geo, ir: 40 }) && !girdlePossible({ geo, cr: -20, ir: 40 }));
+});
+
+test('clavicle: it cannot be driven down through the first rib', () => {
+  assert.ok(!girdlePossible({ geo, ce: -5 }));
+});
+// In this skeleton the clavicle rests on the first rib, so pure retraction meets it at ~12° and pure
+// depression at ~4° (costoclavicular space); with elevation, as in the rhythm, retraction goes further.
+test('clavicle: elevation, protraction and moderate retraction stay possible', () => {
+  for (const G of [{ ce: 30 }, { cr: -20 }, { cr: 10 }, { ce: 10, cr: 10 }, { ce: 17, cr: 22 }]) assert.ok(girdlePossible({ geo, ...G }), JSON.stringify(G));
 });

@@ -22,12 +22,26 @@ const Gnow = () => (gmode === 'fixed' ? null : { geo: GEO, ...(gmode === 'rhythm
 // shoulder can't reach (arm through the trunk, or beyond the elevation limit for that plane), it
 // is undone and a short message shown instead.
 let hintTimer = null, hintBefore = '';
+// The change is approached in small steps (≤ 1° per value) so a jump can't pass through a rib; it stops
+// at the last possible position.
+const snap = () => ({ p: st.p, e: st.e, r: st.r, k: st.k, gm: { ...gm } });
+const setSnap = (a, b, t) => {
+  for (const k of ['p', 'e', 'r', 'k']) st[k] = a[k] + (b[k] - a[k]) * t;
+  for (const k of Object.keys(gm)) gm[k] = a.gm[k] + (b.gm[k] - a.gm[k]) * t;
+};
 function attempt(change) {
-  const before = { p: st.p, e: st.e, r: st.r, k: st.k, gm: { ...gm }, gmode };
+  const before = snap(), modeBefore = gmode;
   change();
-  if (armPossible({ ...st, girdle: Gnow() || undefined }, DATA)) return true;
-  Object.assign(st, { p: before.p, e: before.e, r: before.r, k: before.k }); Object.assign(gm, before.gm); gmode = before.gmode;
-  const h = $('hint'), msg = 'Not possible: the arm would go through the trunk or past its range';
+  const after = snap(), possible = () => armPossible({ ...st, girdle: Gnow() || undefined }, DATA);
+  const span = Math.max(...['p', 'e', 'r', 'k'].map(k => Math.abs(after[k] - before[k])), ...Object.keys(gm).map(k => Math.abs(after.gm[k] - before.gm[k])));
+  const n = Math.min(60, Math.max(1, Math.ceil(span)));
+  let last = 0;
+  if (gmode === modeBefore) for (let i = 1; i <= n; i++) { setSnap(before, after, i / n); if (!possible()) break; last = i; }
+  else if (possible()) last = n;
+  if (last === n) { setSnap(before, after, 1); return true; }
+  if (last > 0) { setSnap(before, after, last / n); ['p', 'e', 'r', 'k'].forEach(k => { st[k] = Math.round(st[k]); }); }
+  else { setSnap(before, before, 0); gmode = modeBefore; }
+  const h = $('hint'), msg = 'Not possible: beyond what the shoulder or scapula can do (through the trunk or ribs, or past its range)';
   if (h.textContent !== msg) hintBefore = h.textContent;
   h.textContent = msg; clearTimeout(hintTimer); hintTimer = setTimeout(() => { h.textContent = hintBefore; }, 2500);
   return false;

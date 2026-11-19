@@ -191,6 +191,27 @@ R49 = np.vstack([F[f"{o} rib.r"] for o in "Fourth Fifth Sixth Seventh Eighth Nin
 TV = np.vstack([F[f"Vertebra T{i}"] for i in range(1, 13)])
 TC = np.array([np.median(TV[:, 0]), c[1], (R49[:, 2].min() + R49[:, 2].max()) / 2])
 TA = [float(TC[0] - R49[:, 0].min()), float((R49[:, 2].max() - R49[:, 2].min()) / 2)]  # half-width (lateral), half-depth
+# Scapulothoracic contact check (app refuses girdle positions that sink the scapula into the ribs):
+# a sample of the right ribs' surface around the scapula, and the scapula's points nearest the ribs.
+rng = np.random.default_rng(1)
+RIBS_R = np.vstack([F[f"{o} rib.r"] for o in "First Second Third Fourth Fifth Sixth Seventh Eighth Ninth Tenth".split()])
+ys, ye = SCAP[:, 1].min() - 6, SCAP[:, 1].max() + 4
+band = RIBS_R[(RIBS_R[:, 1] > ys) & (RIBS_R[:, 1] < ye) & (RIBS_R[:, 2] < TC[2] + 4)]
+rib_pts = band[rng.choice(len(band), min(900, len(band)), replace=False)]
+dS = KD(RIBS_R).query(SCAP)[0]
+near = SCAP[dS < np.quantile(dS, 0.12)]
+scap_pts = np.vstack([near[rng.choice(len(near), min(80, len(near)), replace=False)], AI[None], TS[None], SA[None]])
+r1 = lambda a: np.round(a, 1).tolist()
+# Clavicle vs the upper ribcage: points spread along the clavicle and a sample of ribs 1-3, their
+# cartilages and the manubrium; the app keeps the clavicle a few mm clear of them (it can slide over
+# the first rib in retraction, but not pass through it).
+UPPER = np.vstack([F[k] for k in ["First rib.r", "Second rib.r", "Third rib.r", "Costal cartilage of first rib.r",
+                                  "Costal cartilage of second rib.r", "Costal cartilage of third rib.r", "Manubrium of sternum"] if k in F])
+away = np.linalg.norm(CLAV - SC, axis=1) > 3                          # not the SC joint itself, where they touch
+cl_pts = CLAV[away][rng.choice(int(away.sum()), min(120, int(away.sum())), replace=False)]
+up_pts = UPPER[rng.choice(len(UPPER), min(1500, len(UPPER)), replace=False)]
+print(f"clavicle to upper ribs at rest: min {KD(up_pts).query(cl_pts)[0].min():.2f} cm")
+girdle_extra = dict(ribs=r1(fix(rib_pts)), contact=r1(fix(scap_pts)), clavPts=r1(fix(cl_pts)), upperRibs=r1(fix(up_pts)))
 girdle = dict(TC=r2(fix(TC[None])[0]), TA=r2(np.array(TA)), SC=r2(fix(SC[None])[0]), AC=r2(fix(AC[None])[0]), AI=r2(fix(AI[None])[0]), SA=r2(fix(SA[None])[0]), TS=r2(fix(TS[None])[0]),
               AA=r2(fix(AA[None])[0]), CP=r2(fix(CP[None])[0]), X=np.round(Xs, 4).tolist(), Y=np.round(Ys, 4).tolist(), Z=np.round(Zs, 4).tolist())
 
@@ -230,6 +251,7 @@ B.update(CTX)
 HAND = ("Scaphoid", "Lunate", "Triquetr", "Pisiform", "Trapezium", "Trapezoid", "Capitate", "Hamate", "metacarpal", "of hand")
 hand_r = [k for k in CTX if k.endswith(".r") and any(h in k for h in HAND)]
 body_ref = [k for k in CTX if k not in hand_r]
+girdle.update(girdle_extra)
 out = dict(scap=pack(["Scapula.r"], fix), clav=pack(["Clavicle.r"], fix), thorax=pack(static, fix), hum=pack(["Humerus.r"], q0),
            skel=pack(body_ref, fix, colour=False), hand=pack(hand_r, flex, colour=False),
            fore=pack(fore, flex, colour=False), lines=L, R=round(float(r), 2), girdle=girdle,

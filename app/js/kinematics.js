@@ -288,8 +288,8 @@ export const RHYTHM = { ur: 0.35, pt: 0.12, ir: 0, ce: 0.1, cr: 0.13 };
 // Limits for setting the girdle by hand or dragging it (degrees from rest), typical active ranges:
 // clavicle (SC joint) elevation ~35°, depression ~10°, protraction ~20°, retraction ~25°; scapula
 // upward rotation to ~60° (end of arm elevation), downward ~10°, posterior tilt ~30°, anterior
-// ~20°; internal rotation (winging) left generous to show pathology. Healthy rhythm stays inside.
-export const GIRDLE_RANGE = { ur: [-10, 60], pt: [-20, 30], ir: [-15, 40], ce: [-10, 35], cr: [-20, 25] };
+// ~20°; winging (beyond chest-following) to 20°, about 5 cm of lift-off. Healthy rhythm stays inside.
+export const GIRDLE_RANGE = { ur: [-10, 60], pt: [-20, 30], ir: [-10, 20], ce: [-10, 35], cr: [-20, 25] };
 export const rhythm = e => Object.fromEntries(Object.entries(RHYTHM).map(([k, r]) => [k, r * e]));
 
 // Rhythm for a plane of elevation: full rhythm in front of p = -30°; behind it (towards pure
@@ -313,7 +313,39 @@ export function trunkClearance(pose, data) {
   for (const P of pts) if (P[1] < 0 && P[1] > -60) m = Math.min(m, Math.hypot((P[0] - geo.TC[0]) / geo.TA[0], (P[2] - geo.TC[2]) / geo.TA[1]));
   return m;
 }
-export const armPossible = (pose, data) => pose.e <= maxElevation(pose.p) + 1e-9 && trunkClearance(pose, data) >= 1;
+// Scapula against the real ribs (geo.ribs: a sample of the rib surface around the scapula; geo.contact:
+// the scapula's points nearest the ribs at rest). A contact point is inside when its nearest rib point
+// is farther from the trunk's centre line than it is. inside = deepest (cm); lift = median distance of
+// the contact points off the ribs (cm; ~1.3 at rest, ~6 at full elevation with the rhythm).
+export function scapulaContact(G) {
+  const geo = G.geo, g = girdle(G), c = geo.TC, rad = p => Math.hypot(p[0] - c[0], p[2] - c[2]);
+  let inside = 0; const lift = [];
+  for (const s of geo.contact) {
+    const p = g.scap(s); let bd = Infinity, bq = null;
+    for (const q of geo.ribs) { const dd = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2; if (dd < bd) { bd = dd; bq = q; } }
+    const sink = rad(bq) - rad(p);
+    if (sink > 0.3) inside = Math.max(inside, sink);
+    lift.push(sink > 0 ? 0 : Math.sqrt(bd));
+  }
+  lift.sort((a, b) => a - b);
+  return { inside, lift: lift[Math.floor(lift.length / 2)] };
+}
+// Clavicle against the upper ribcage (geo.clavPts along the clavicle, geo.upperRibs: ribs 1-3, their
+// cartilages, manubrium): smallest gap in cm (~0.45 at rest; it slides over the first rib in retraction).
+export function clavicleClearance(G) {
+  const geo = G.geo, g = girdle(G); let m = Infinity;
+  for (const s of geo.clavPts) { const p = g.clav(s); for (const q of geo.upperRibs) { const dd = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2; if (dd < m) m = dd; } }
+  return Math.sqrt(m);
+}
+// The scapula may not sink into the ribs (> 0.5 cm), nor lift further off than the rhythm itself does
+// at full elevation (median 6.5 cm; severe winging lifts the medial border ~5 cm); the clavicle must stay
+// clear of the upper ribs. These are checked step by step in the app, so nothing can jump through a rib.
+export const girdlePossible = G => {
+  if (!G || !G.geo.ribs) return true;
+  const c = scapulaContact(G);
+  return c.inside <= 0.5 && c.lift <= 6.5 && (!G.geo.clavPts || clavicleClearance(G) >= 0.05);
+};
+export const armPossible = (pose, data) => pose.e <= maxElevation(pose.p) + 1e-9 && trunkClearance(pose, data) >= 1 && girdlePossible(pose.girdle);
 
 // Glenohumeral elevation: angle between the humeral shaft and where it would hang if the scapula
 // carried it (the scapula's own "arm by side" direction).
