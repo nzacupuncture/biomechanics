@@ -24,7 +24,9 @@ Good next requests once it's live:
 
 ## Using it
 
-- **Sliders** set the arm (plane of elevation, elevation, rotation) and the elbow.
+- **Sliders** set the arm (plane of elevation from pure extension to cross-body, elevation, rotation)
+  and the elbow. Positions the shoulder can't reach (the arm through the trunk, or beyond its range,
+  e.g. more than ~60° of extension) are refused with a short message.
 - **Scapula:** *Moves with the arm* (default) follows healthy scapulohumeral rhythm, so about a
   third of arm elevation happens at the scapula and the pose line shows the glenohumeral angle;
   *Fixed* shows the glenohumeral joint on its own; *Set by hand* lets you set upward rotation, tilt,

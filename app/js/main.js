@@ -1,6 +1,6 @@
 // Rendering and UI. All biomechanics lives in kinematics.js (unit-tested); this file only
 // draws what kinematics.js computes. THREE is loaded as a global (UMD r128) in index.html.
-import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, ghElevation, scapulaAngles, clavicleAngles, turnAbout, GIRDLE_RANGE } from './kinematics.js?v=dev';
+import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, rhythmFor, armPossible, ghElevation, scapulaAngles, clavicleAngles, turnAbout, GIRDLE_RANGE } from './kinematics.js?v=dev';
 
 const DATA = await (await fetch('data/shoulder.json?v=dev')).json();
 const HR = DATA.R;
@@ -17,7 +17,21 @@ const st = { p: 0, e: 0, r: 0, k: 90, roll: 40 };
 let gmode = 'rhythm';
 const gm = { ur: 0, pt: 0, ir: 0, ce: 0, cr: 0 };
 const GEO = DATA.girdle;
-const Gnow = () => (gmode === 'fixed' ? null : { geo: GEO, ...(gmode === 'rhythm' ? rhythm(st.e) : gm) });
+const Gnow = () => (gmode === 'fixed' ? null : { geo: GEO, ...(gmode === 'rhythm' ? rhythmFor(st.p, st.e) : gm) });
+// Every change to the arm, elbow or girdle goes through attempt(): if the result is a position the
+// shoulder can't reach (arm through the trunk, or beyond the elevation limit for that plane), it
+// is undone and a short message shown instead.
+let hintTimer = null, hintBefore = '';
+function attempt(change) {
+  const before = { p: st.p, e: st.e, r: st.r, k: st.k, gm: { ...gm }, gmode };
+  change();
+  if (armPossible({ ...st, girdle: Gnow() || undefined }, DATA)) return true;
+  Object.assign(st, { p: before.p, e: before.e, r: before.r, k: before.k }); Object.assign(gm, before.gm); gmode = before.gmode;
+  const h = $('hint'), msg = 'Not possible: the arm would go through the trunk or past its range';
+  if (h.textContent !== msg) hintBefore = h.textContent;
+  h.textContent = msg; clearTimeout(hintTimer); hintTimer = setTimeout(() => { h.textContent = hintBefore; }, 2500);
+  return false;
+}
 const poseNow = () => ({ ...st, girdle: Gnow() || undefined });
 const EL = DATA.lines.find(l => l.el).el; // elbow axis, centre and built angle
 let swim = false;
@@ -190,13 +204,13 @@ function dragArm(e) {
   const turn = new THREE.Quaternion().setFromUnitVectors(cur, P.normalize());
   const ax = T3(qRot(q, [0, -1, 0])).applyQuaternion(turn); // new humeral axis (shoulder to elbow)
   const ne = Math.acos(clamp(-ax.y, -1, 1)) / D;
-  if (ne > 3) st.p = Math.round(clamp(Math.atan2(ax.z, -ax.x) / D, -30, 130));
+  if (ne > 3) st.p = Math.round(clamp(Math.atan2(ax.z, -ax.x) / D, -90, 130));
   st.e = Math.round(clamp(ne, 0, 170));
 }
 cv.addEventListener('pointermove', e => {
   if (!ptr.size && !drawMode) cv.style.cursor = hitAt(e, DRAGGABLE()) ? 'move' : '';
   if (!ptr.has(e.pointerId)) return;
-  if (grab && ptr.size === 1) { ptr.set(e.pointerId, [e.clientX, e.clientY]); moved += 7; if (grab.kind === 'arm') dragArm(e); else dragBone(e); markPreset(null); update(); return; }
+  if (grab && ptr.size === 1) { ptr.set(e.pointerId, [e.clientX, e.clientY]); moved += 7; attempt(() => (grab.kind === 'arm' ? dragArm(e) : dragBone(e))); markPreset(null); update(); return; }
   const pr = ptr.get(e.pointerId), dx = e.clientX - pr[0], dy = e.clientY - pr[1];
   ptr.set(e.pointerId, [e.clientX, e.clientY]); moved += Math.abs(dx) + Math.abs(dy);
   if (ptr.size === 2) {
@@ -280,7 +294,7 @@ function describe(l) {
 }
 function planeName() {
   const { p } = st;
-  return p <= -10 ? 'extension plane' : p < 15 ? 'abduction (frontal plane)' : p < 50 ? 'scaption' : p <= 105 ? 'flexion (sagittal plane)' : 'cross-body';
+  return p <= -70 ? 'extension (behind the trunk)' : p <= -10 ? 'extension plane' : p < 15 ? 'abduction (frontal plane)' : p < 50 ? 'scaption' : p <= 105 ? 'flexion (sagittal plane)' : 'cross-body';
 }
 
 // ---------- update ----------
@@ -380,8 +394,8 @@ const tableClick = e => {
   if (tr) { sel = sel === tr.dataset.id ? null : tr.dataset.id; update(); }
 };
 $('tb').addEventListener('click', tableClick); $('tbs').addEventListener('click', tableClick);
-['p', 'e', 'r', 'k', 'roll'].forEach(k => $(k).addEventListener('input', e => { st[k] = +e.target.value; markPreset(null); update(); }));
-const PRE = [['Arm by side', { p: 0, e: 0, r: 0, k: 90 }], ['Abduction 90°', { p: 0, e: 90, r: 0, k: 90 }], ['Flexion 120°', { p: 90, e: 120, r: 0, k: 90 }], ['Hand behind back', { p: -20, e: 25, r: -80, k: 90 }], ['Serve cocking', { p: 0, e: 90, r: 85, k: 90 }], ['Freestyle catch', { p: 80, e: 150, r: -15, k: 90 }],
+['p', 'e', 'r', 'k', 'roll'].forEach(k => $(k).addEventListener('input', e => { attempt(() => { st[k] = +e.target.value; }); markPreset(null); update(); }));
+const PRE = [['Arm by side', { p: 0, e: 0, r: 0, k: 90 }], ['Abduction 90°', { p: 0, e: 90, r: 0, k: 90 }], ['Flexion 120°', { p: 90, e: 120, r: 0, k: 90 }], ['Hand behind back', { p: -75, e: 40, r: -80, k: 90 }], ['Serve cocking', { p: 0, e: 90, r: 85, k: 90 }], ['Freestyle catch', { p: 80, e: 150, r: -15, k: 90 }],
   // Freestyle recovery, sprinter with a high-elbow recovery and 40° body roll (these presets open
   // Swimmer view). Angles fitted so the hand and elbow sit where each phase is described, with
   // internal rotation only. The scapula is fixed, so the shoulder angles stand for the whole arm
@@ -411,7 +425,7 @@ $('gmode').addEventListener('click', e => {
   if (b.dataset.m === 'manual' && gmode !== 'manual') Object.assign(gm, Gnow() ? Object.fromEntries(['ur', 'pt', 'ir', 'ce', 'cr'].map(k => [k, Math.round(Gnow()[k])])) : {});
   gmode = b.dataset.m; update();
 });
-['ur', 'pt', 'ir', 'ce', 'cr'].forEach(k => { const el = $('g' + k); [el.min, el.max] = GIRDLE_RANGE[k]; el.addEventListener('input', e => { gm[k] = +e.target.value; update(); }); });
+['ur', 'pt', 'ir', 'ce', 'cr'].forEach(k => { const el = $('g' + k); [el.min, el.max] = GIRDLE_RANGE[k]; el.addEventListener('input', e => { attempt(() => { gm[k] = +e.target.value; }); update(); }); });
 function setSwim(on) {
   swim = on; $('swimBtn').setAttribute('aria-pressed', on); $('rollRow').hidden = !on;
   if (on) { az = 55 * D; el = 22 * D; dist = 150; swimDepth = -4; } else { az = -35 * D; el = 10 * D; dist = 132; }

@@ -57,7 +57,13 @@ tests/               node:test suite
 - **Frame:** cm, origin at the glenohumeral (GH) centre. x = medial(+)/lateral(−) for the RIGHT
   side, y = up, z = anterior. Fixed points (scapula, clavicle, thorax) are in this frame;
   humeral points are stored humerus-local with the arm hanging vertically, and are rotated at runtime.
-- **Pose:** `p` plane of elevation (0 = abduction, 90 = flexion, >90 cross-body, <0 towards
+- **Range of motion** (`armPossible`, tests/range.test.mjs): elevation ≤ `maxElevation(p)` (170° from
+  p = −30° forwards, falling to 60° at pure extension p = −90°) and `trunkClearance` ≥ 1 (humerus and
+  forearm outside the ribs-4–9 elliptical cylinder between shoulder and pelvis). The app refuses any
+  slider, drag or girdle change that breaks this. `rhythmFor(p, e)` fades the scapular rhythm out
+  behind p = −30° (extension doesn't upwardly rotate the scapula). Internal rotation at the side stops
+  ~45–50° (forearm meets the trunk; slightly conservative because the abdomen is narrower than ribs).
+- **Pose:** `p` plane of elevation (−90 = pure extension, 0 = abduction, 90 = flexion, >90 cross-body, <0 towards
   extension), `e` elevation, `r` axial rotation (+ = external). Rotation:
   `R = Ry(p) · Rz(−e) · Ry(−p) · Ry(−r)`: elevation in any plane with **no hidden roll**.
 - **Elbow:** pose `k` = elbow flexion in degrees (0 = straight). Lines that insert on the forearm carry
@@ -72,7 +78,7 @@ tests/               node:test suite
   shoulder. `data.wrist` = distal forearm centroid (humerus-local, at k0).
 - **Dragging:** the grabbed point follows the pointer on a sphere round the GH centre; the humeral
   axis turns with it and is converted back to plane/elevation (rotation kept). Shift-drag = rotation.
-  Slider ranges are the limits (plane −30…130°, so pure extension behind the trunk isn't reachable).
+  Slider ranges and `armPossible` are the limits (plane −90…130°).
   Forearm/hand drag = elbow (`turnAbout` the posed elbow axis); scapula/clavicle drag = the grabbed
   point follows the pointer on a sphere round the AC/SC joint, and `scapulaAngles` /
   `clavicleAngles` (Gauss-Newton, tested round trip) turn the rotation back into girdle angles;

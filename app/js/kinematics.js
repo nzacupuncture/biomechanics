@@ -292,6 +292,29 @@ export const RHYTHM = { ur: 0.35, pt: 0.12, ir: 0, ce: 0.1, cr: 0.13 };
 export const GIRDLE_RANGE = { ur: [-10, 60], pt: [-20, 30], ir: [-15, 40], ce: [-10, 35], cr: [-20, 25] };
 export const rhythm = e => Object.fromEntries(Object.entries(RHYTHM).map(([k, r]) => [k, r * e]));
 
+// Rhythm for a plane of elevation: full rhythm in front of p = -30°; behind it (towards pure
+// extension, p = -90°) the scapula stops following elevation, since extension does not upwardly
+// rotate it.
+export const rhythmFor = (p, e) => rhythm(e * Math.max(0, Math.min(1, (p + 90) / 60)));
+
+// ---- what the shoulder can actually do ----------------------------------------------------
+// Elevation limit by plane: full (170°) from p = -30° forwards; behind that it falls to 60° at
+// pure extension (p = -90°), so the arm can't swing far behind the trunk.
+export const maxElevation = p => (p >= -30 ? 170 : 60 + (p + 90) / 60 * 110);
+// Trunk clearance: the humerus and forearm must stay outside the trunk, modelled as the upright
+// elliptical cylinder of ribs 4-9 (geo.TC, geo.TA) between shoulder level and the pelvis.
+// Returns the smallest value along the arm of ((x/a)² + (z/b)²)^½: below 1 = inside the trunk.
+export function trunkClearance(pose, data) {
+  const geo = data.girdle, el = data.lines.find(l => l.el).el, q = rot(pose.p, pose.e, pose.r);
+  const gh = pose.girdle ? girdle(pose.girdle).gh : [0, 0, 0], at = P => v.add(qRot(q, P), gh);
+  const E = at(el.ep), W = at(v.add(el.ep, qRot(elbowQ(el, pose.k ?? el.k0), v.sub(data.wrist, el.ep))));
+  const pts = [0.4, 0.7, 1].map(t => v.add(gh, v.mul(v.sub(E, gh), t))).concat([0.5, 1].map(t => v.add(E, v.mul(v.sub(W, E), t))));
+  let m = Infinity;
+  for (const P of pts) if (P[1] < 0 && P[1] > -60) m = Math.min(m, Math.hypot((P[0] - geo.TC[0]) / geo.TA[0], (P[2] - geo.TC[2]) / geo.TA[1]));
+  return m;
+}
+export const armPossible = (pose, data) => pose.e <= maxElevation(pose.p) + 1e-9 && trunkClearance(pose, data) >= 1;
+
 // Glenohumeral elevation: angle between the humeral shaft and where it would hang if the scapula
 // carried it (the scapula's own "arm by side" direction).
 export function ghElevation(q, G) {
