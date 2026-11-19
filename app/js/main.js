@@ -75,10 +75,24 @@ const skelClear = skelM.material;
 const skelFaded = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 });
 const fadeColour = () => BONE.clone().lerp(new THREE.Color(css('--soft')), 0.55);
 let skelMode = 'faded';
+// The pilot's trunk bones (right ribs, sternum, spine, neck, occiput) are their own mesh with muscle
+// footprints; in Faded mode they get the same solid, pale look (footprints kept, faded).
+const thoraxClear = thorax.material, thoraxFaded = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+const thoraxCols = thorax.geometry.getAttribute('color').array.slice();
+function fadeThorax(on) {
+  const attr = thorax.geometry.getAttribute('color'), a = attr.array, bg = new THREE.Color(css('--soft')), c = new THREE.Color();
+  for (let i = 0; i < a.length; i += 3) {
+    c.setRGB(thoraxCols[i], thoraxCols[i + 1], thoraxCols[i + 2]);
+    if (on) c.lerp(bg, 0.55);
+    a[i] = c.r; a[i + 1] = c.g; a[i + 2] = c.b;
+  }
+  attr.needsUpdate = true; thorax.material = on ? thoraxFaded : thoraxClear;
+}
 function setSkel(m) {
   skelMode = m; skelM.visible = m !== 'hidden';
   if (m === 'faded') skelFaded.color.copy(fadeColour());
   skelM.material = m === 'faded' ? skelFaded : skelClear;
+  fadeThorax(m === 'faded');
   document.querySelectorAll('#skelMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
   render();
 }
