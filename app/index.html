@@ -14,6 +14,13 @@
 <p>Move the right arm, elbow and scapula and see how each muscle’s length and moment arms change. Bones from Z-Anatomy.</p>
 </header>
 <main>
+<section class="panel muscles" aria-label="Muscles">
+<div class="chips" id="chips"></div>
+<div class="detail" id="detail"><h2>Pick a muscle</h2><p>Tap a row or a line to see its moment arm drawn from the joint centre.</p></div>
+<div class="tw"><table><thead><tr><th>Muscle</th><th title="Length change from arm-by-side">Length</th><th title="Moment arm for elevation">Elev</th><th title="Moment arm for horizontal adduction">Horiz</th><th title="Moment arm for external rotation">Rot</th><th title="Moment arm for elbow flexion">Elbow</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="tw" id="scapTable"><table><thead><tr><th>Scapular muscle</th><th title="Length change from arm-by-side">Length</th><th title="Moment arm for upward rotation of the shoulder girdle">Up rot</th><th title="Moment arm for posterior tilt">Tilt</th><th title="Moment arm for internal rotation (winging)">Int rot</th><th title="Moment arm for elevation">Elev</th><th title="Moment arm for retraction">Retr</th></tr></thead><tbody id="tbs"></tbody></table></div>
+<p class="note">Moment arms in cm; positive means the pull drives that movement. Shoulder moment arms are about the glenohumeral joint; horizontal values appear above 15°. With the scapula moving with the arm, the shoulder sliders are the arm relative to the trunk and the scapula and clavicle follow published healthy rhythm (Ludewig et al. 2009): about a third of the elevation happens at the scapula. Choose Fixed to see the joint on its own, or Set by hand to explore dyskinesis and winging. Scapular muscles are single lines (serratus wraps round the chest wall); their upward-rotation values are about the whole girdle and are least reliable at high elevation. Swimmer view lays the body prone: roll changes where the arm is in the water, not muscle lengths.</p>
+</section>
 <section class="viewer" aria-label="3D shoulder model">
 <canvas id="c"></canvas>
 <div class="pose"><div class="big" id="poseBig">0°</div><div class="sub" id="poseSub">Arm by the side</div></div>
@@ -21,7 +28,7 @@
 <div class="malabel" id="malabel" hidden></div>
 <div class="presets" id="presets"></div>
 </section>
-<section class="panel" aria-label="Controls and results">
+<section class="panel controls" aria-label="Controls">
 <div>
 <div class="sl"><label for="p">Plane of elevation</label><input type="range" id="p" min="-30" max="130" value="0"><output id="po">0°</output></div>
 <div class="sl"><label for="e">Elevation</label><input type="range" id="e" min="0" max="170" value="0"><output id="eo">0°</output></div>
@@ -37,13 +44,8 @@
 <div class="sl"><label for="gce">Elevation</label><input type="range" id="gce" min="-15" max="45" value="0"><output id="gceo">0°</output></div>
 <div class="sl"><label for="gcr">Retraction (protraction −)</label><input type="range" id="gcr" min="-30" max="40" value="0"><output id="gcro">0°</output></div>
 </div>
-<div class="chips" id="chips"></div>
 <div class="row"><button id="drawBtn" aria-pressed="false">Draw a line</button><button id="thoraxBtn" aria-pressed="true">Ribcage shown</button><button id="swimBtn" aria-pressed="false">Swimmer view</button></div>
 <div class="row seg" id="skelMode" role="group" aria-label="Whole body"><span class="seglab">Whole body</span><button data-m="faded">Faded</button><button data-m="clear">See-through</button><button data-m="hidden">Hidden</button></div>
-<div class="detail" id="detail"><h2>Pick a muscle</h2><p>Tap a row or a line to see its moment arm drawn from the joint centre.</p></div>
-<div class="tw"><table><thead><tr><th>Muscle</th><th title="Length change from arm-by-side">Length</th><th title="Moment arm for elevation">Elev</th><th title="Moment arm for horizontal adduction">Horiz</th><th title="Moment arm for external rotation">Rot</th><th title="Moment arm for elbow flexion">Elbow</th></tr></thead><tbody id="tb"></tbody></table></div>
-<div class="tw" id="scapTable"><table><thead><tr><th>Scapular muscle</th><th title="Length change from arm-by-side">Length</th><th title="Moment arm for upward rotation of the shoulder girdle">Up rot</th><th title="Moment arm for posterior tilt">Tilt</th><th title="Moment arm for internal rotation (winging)">Int rot</th><th title="Moment arm for elevation">Elev</th><th title="Moment arm for retraction">Retr</th></tr></thead><tbody id="tbs"></tbody></table></div>
-<p class="note">Moment arms in cm; positive means the pull drives that movement. Shoulder moment arms are about the glenohumeral joint; horizontal values appear above 15°. With the scapula moving with the arm, the shoulder sliders are the arm relative to the trunk and the scapula and clavicle follow published healthy rhythm (Ludewig et al. 2009): about a third of the elevation happens at the scapula. Choose Fixed to see the joint on its own, or Set by hand to explore dyskinesis and winging. Scapular muscles are single lines (serratus wraps round the chest wall); their upward-rotation values are about the whole girdle and are least reliable at high elevation. Swimmer view lays the body prone: roll changes where the arm is in the water, not muscle lengths.</p>
 </section>
 </main>
 <footer>Bone geometry: <a href="https://github.com/Z-Anatomy/Models-of-human-anatomy">Z-Anatomy, the libre 3D atlas of anatomy</a> (CC BY-SA 4.0), derived from BodyParts3D, The Database Center for Life Science (CC BY-SA 2.1 Japan). Meshes simplified, arm re-posed and attachment points derived for this tool. This tool is shared under CC BY-SA 4.0.</footer>
