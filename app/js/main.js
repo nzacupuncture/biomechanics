@@ -170,9 +170,11 @@ const tgt = new THREE.Vector3(-6, -7, 2);
 let az = -35 * D, el = 10 * D, dist = 132;
 let swimDepth = -4; // Swimmer view centre: a little under the surface, deeper for underwater phases
 const SWIM_T = new THREE.Vector3(...toSwimmer([0, -6, 0], 0, PIVOT)).setY(WATER - 4);
+const tgtOff = new THREE.Vector3(); // shift of the view centre from zooming towards the pointer
 function place() {
   const narrow = cv.clientWidth / Math.max(1, cv.clientHeight) < 0.9;
   if (swim) tgt.copy(SWIM_T).setY(WATER + swimDepth); else tgt.set(narrow ? 3 : -6, -7, 2);
+  tgt.add(tgtOff);
   cam.position.set(tgt.x + dist * Math.cos(el) * Math.sin(az), tgt.y + dist * Math.sin(el), tgt.z + dist * Math.cos(el) * Math.cos(az));
   cam.lookAt(tgt); render();
 }
@@ -264,7 +266,29 @@ cv.addEventListener('pointermove', e => {
 });
 cv.addEventListener('pointerup', e => { ptr.delete(e.pointerId); if (ptr.size < 2) pinch0 = 0; if (moved < 6 && down && ptr.size === 0) pick(e); if (!ptr.size) grab = null; });
 cv.addEventListener('pointercancel', e => { ptr.delete(e.pointerId); grab = null; });
-cv.addEventListener('wheel', e => { e.preventDefault(); dist = Math.min(420, Math.max(30, dist * Math.exp(e.deltaY * 0.001))); place(); }, { passive: false });
+// Zoom towards the pointer: the point under the mouse stays put while everything scales about it
+// (the view centre moves too; double-click empty space to re-centre).
+function pointUnder(e) {
+  const r = cv.getBoundingClientRect();
+  ray.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1 }, cam);
+  const solid = [scapM, clavM, thorax, skelM, humM, foreM, handM, tubes].filter(o => o.visible);
+  const h = ray.intersectObjects(solid, true)[0];
+  if (h) return h.point.clone();
+  const n = cam.getWorldDirection(new THREE.Vector3()), P = new THREE.Vector3();
+  return ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, tgt), P) ? P : null;
+}
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const nd = Math.min(420, Math.max(12, dist * Math.exp(e.deltaY * 0.001))), s = nd / dist, P = pointUnder(e);
+  if (P) tgtOff.add(P.clone().add(tgt.clone().sub(P).multiplyScalar(s)).sub(tgt));
+  dist = nd; place();
+}, { passive: false });
+cv.addEventListener('dblclick', e => {
+  if (drawMode || hitAt(e, DRAGGABLE())) return;
+  tgtOff.set(0, 0, 0);
+  if (swim) { az = 55 * D; el = 22 * D; dist = 150; } else { az = -35 * D; el = 10 * D; dist = 132; }
+  place();
+});
 
 // ---------- picking and drawing your own lines ----------
 const ray = new THREE.Raycaster();
@@ -307,7 +331,7 @@ function setDraw(on) {
   drawMode = on; pending = null;
   $('drawBtn').setAttribute('aria-pressed', on); $('drawBtn').textContent = on ? 'Cancel drawing' : 'Draw a line';
   cv.classList.toggle('draw', on);
-  hint(on ? 'Tap a start point on the scapula, clavicle or ribcage' : 'Drag a bone to move it (Shift-drag the humerus to rotate it); drag elsewhere to orbit; scroll to zoom');
+  hint(on ? 'Tap a start point on the scapula, clavicle or ribcage' : 'Drag a bone to move it (Shift-drag the humerus to rotate it); drag elsewhere to orbit; scroll to zoom towards the pointer; double-click empty space to re-centre');
   if (!on) update();
 }
 
@@ -468,7 +492,7 @@ $('presets').addEventListener('click', e => {
   Object.assign(st, pose); if (sw && !swim) setSwim(true);
   // swimming presets: underwater phases are seen from the swimmer's right just below the surface,
   // recovery phases from above the water
-  if (sw) { const under = pose.roll < 0; az = (under ? 20 : 55) * D; el = (under ? -8 : 22) * D; dist = 150; swimDepth = under ? -22 : -4; place(); }
+  if (sw) { const under = pose.roll < 0; az = (under ? 20 : 55) * D; el = (under ? -8 : 22) * D; dist = 150; swimDepth = under ? -22 : -4; tgtOff.set(0, 0, 0); place(); }
   markPreset(+b.dataset.i); update();
 });
 $('gmode').addEventListener('click', e => {
@@ -479,6 +503,7 @@ $('gmode').addEventListener('click', e => {
 ['ur', 'pt', 'ir', 'ce', 'cr'].forEach(k => { const el = $('g' + k); [el.min, el.max] = GIRDLE_RANGE[k]; el.addEventListener('input', e => { attempt(() => { gm[k] = +e.target.value; }); update(); }); });
 function setSwim(on) {
   swim = on; $('swimBtn').setAttribute('aria-pressed', on); $('rollRow').hidden = !on;
+  tgtOff.set(0, 0, 0);
   if (on) { az = 55 * D; el = 22 * D; dist = 150; swimDepth = -4; } else { az = -35 * D; el = 10 * D; dist = 132; }
   place(); update();
 }

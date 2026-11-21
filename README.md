@@ -40,7 +40,8 @@ Good next requests once it's live:
   rotate it about its long axis), the **radius, ulna or hand** bend the elbow, the **scapula**
   rotates about the AC joint and the **clavicle** swings about the SC joint (grabbing either switches
   the scapula to *Set by hand*; the arm keeps its position relative to the trunk, so the
-  glenohumeral angle changes). Drag anywhere else to turn the view; scroll to zoom.
+  glenohumeral angle changes). Drag anywhere else to turn the view; scroll to zoom towards whatever
+  is under the pointer; double-click empty space to re-centre.
 - **Swimmer view** lays the body face down in the water with a **Body roll** slider, and tells you
   where the elbow and wrist are relative to the water and the shoulder. Roll doesn't change muscle
   lengths (the muscles roll with the trunk); it changes where the arm is in the water.
