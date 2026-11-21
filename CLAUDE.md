@@ -57,6 +57,12 @@ tests/               node:test suite
 - **Frame:** cm, origin at the glenohumeral (GH) centre. x = medial(+)/lateral(−) for the RIGHT
   side, y = up, z = anterior. Fixed points (scapula, clavicle, thorax) are in this frame;
   humeral points are stored humerus-local with the arm hanging vertically, and are rotated at runtime.
+- **Clinical names and planes:** the sliders keep the ISB globe system (plane of elevation `p`,
+  elevation `e`) but are labelled clinically via `movementName(p)` ("Direction of movement: flexion",
+  "Amount of movement: 120° flexion"). Plane overlay (main.js `updatePlanes`): sagittal/frontal/
+  transverse from `anatomicalPlanes(q|null)` (trunk-aligned or turned with the humerus), through the
+  body midline, the GH centre or the elbow; the scapular plane (scapula's ISB X normal, moves with it)
+  and the arm's plane (`elevationPlaneNormal(p)`, always contains the humerus; tested).
 - **Range of motion** (`armPossible`, tests/range.test.mjs): elevation ≤ `maxElevation(p)` (170° from
   p = −30° forwards, falling to 60° at pure extension p = −90°) and `trunkClearance` ≥ 1 (humerus and
   forearm outside the ribs-4–9 elliptical cylinder between shoulder and pelvis). The app refuses any

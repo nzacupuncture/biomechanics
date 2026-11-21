@@ -386,6 +386,29 @@ export function ghElevation(q, G) {
   return Math.acos(Math.max(-1, Math.min(1, v.dot(d, ref)))) / D;
 }
 
+// ---- clinical names and anatomical planes ------------------------------------
+// Clinical name for the direction of arm movement (the ISB "plane of elevation" p): 0° = abduction in
+// the frontal plane, ~30-50° = scaption (scapular plane), 90° = flexion in the sagittal plane, beyond
+// ~105° = horizontal adduction (cross-body flexion), negative = behind the body, -90° = extension.
+export function movementName(p) {
+  if (p <= -45) return 'extension';
+  if (p < -10) return 'abduction behind the body';
+  if (p < 15) return 'abduction';
+  if (p < 50) return 'scaption';
+  if (p <= 105) return 'flexion';
+  return 'horizontal adduction';
+}
+// Normal of the vertical plane the arm moves in for plane of elevation p (trunk frame: x medial,
+// y up, z anterior): p = 0 gives the frontal plane (normal z), p = 90 the sagittal plane (normal x).
+export const elevationPlaneNormal = p => [Math.sin(p * D), 0, Math.cos(p * D)];
+// Anatomical planes as (normal, in-plane "up") pairs, aligned to the trunk or turned with the humerus
+// (q = the humerus orientation). Sagittal normal = medial-lateral axis, frontal = anteroposterior,
+// transverse = vertical.
+export function anatomicalPlanes(q) {
+  const R = x => (q ? qRot(q, x) : x);
+  return { sagittal: { n: R([1, 0, 0]), up: R([0, 1, 0]) }, frontal: { n: R([0, 0, 1]), up: R([0, 1, 0]) }, transverse: { n: R([0, 1, 0]), up: R([0, 0, 1]) } };
+}
+
 // ---- swimmer frame ----------------------------------------------------------
 // Turns the upright anatomical model into a prone swimmer and rolls the body about the trunk's
 // long axis. World frame: +X = direction of travel (head), +Y = up out of the water,

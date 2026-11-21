@@ -1,6 +1,6 @@
 // Rendering and UI. All biomechanics lives in kinematics.js (unit-tested); this file only
 // draws what kinematics.js computes. THREE is loaded as a global (UMD r128) in index.html.
-import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, rhythmFor, armPossible, ghElevation, scapulaAngles, clavicleAngles, turnAbout, GIRDLE_RANGE } from './kinematics.js?v=dev';
+import { rot, path, length, momentArm, qInv, qRot, qMul, D, elbowQ, swimQ, toSwimmer, girdle, rhythm, rhythmFor, armPossible, ghElevation, scapulaAngles, clavicleAngles, turnAbout, GIRDLE_RANGE, movementName, elevationPlaneNormal, anatomicalPlanes } from './kinematics.js?v=dev';
 
 const DATA = await (await fetch('data/shoulder.json?v=dev')).json();
 const HR = DATA.R;
@@ -136,6 +136,34 @@ const maLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMa
 maLine.renderOrder = 5; body.add(maLine);
 const footG = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), new THREE.MeshBasicMaterial({ color: 0x111111, depthTest: false }));
 footG.renderOrder = 6; body.add(footG);
+// Anatomical planes overlay: translucent sheets with outlines, inside `body` so they roll in Swimmer view.
+const PLANES = { sagittal: '#E05A5A', frontal: '#4A8FE7', transverse: '#3DBB6B', scapular: '#A06BE0', arm: '#E5B400' };
+const planeOn = Object.fromEntries(Object.keys(PLANES).map(k => [k, false]));
+let planeAt = 'gh', planeOri = 'trunk';
+const planeMesh = Object.fromEntries(Object.entries(PLANES).map(([k, c]) => {
+  const g = new THREE.Group(), geo = new THREE.PlaneGeometry(1, 1);
+  g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })));
+  g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: 0.85 })));
+  g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.5, 0, 0), new THREE.Vector3(0.5, 0, 0), new THREE.Vector3(0, -0.5, 0), new THREE.Vector3(0, 0.5, 0)]), new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: 0.5 })));
+  g.renderOrder = 4; g.visible = false; body.add(g);
+  return [k, g];
+}));
+// place a plane: centre c, unit normal n, in-plane up direction up, square of side `size`
+function placePlane(g, c, n, up, size) {
+  const N = T3(n).normalize(), U = T3(up).sub(N.clone().multiplyScalar(T3(up).dot(N))).normalize(), W = new THREE.Vector3().crossVectors(U, N);
+  g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(W, U, N)); g.position.copy(T3(c)); g.scale.set(size, size, 1);
+}
+function updatePlanes(q, gd) {
+  const gh = gd ? gd.gh : [0, 0, 0], elbow = v3add(qRot(q, EL.ep), gh);
+  const centre = planeAt === 'body' ? [GEO.TC[0], -8, GEO.TC[2]] : planeAt === 'elbow' ? elbow : gh, size = planeAt === 'body' ? 90 : 46;
+  const A = anatomicalPlanes(planeOri === 'humerus' ? q : null);
+  for (const k of ['sagittal', 'frontal', 'transverse']) { planeMesh[k].visible = planeOn[k]; if (planeOn[k]) placePlane(planeMesh[k], centre, A[k].n, A[k].up, size); }
+  planeMesh.scapular.visible = planeOn.scapular;
+  if (planeOn.scapular) { const qS = gd ? gd.qS : [0, 0, 0, 1]; placePlane(planeMesh.scapular, gh, qRot(qS, GEO.X), qRot(qS, GEO.Y), 46); }
+  planeMesh.arm.visible = planeOn.arm;
+  if (planeOn.arm) placePlane(planeMesh.arm, gh, elevationPlaneNormal(st.p), [0, 1, 0], 64);
+}
+const v3add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
 // ---------- orbit camera ----------
 const tgt = new THREE.Vector3(-6, -7, 2);
@@ -296,25 +324,30 @@ function describeScap(l) {
   if (!out.length) return 'In this position it has almost no leverage on the scapula.';
   return 'In this position it ' + (out.length > 1 ? out.slice(0, -1).join(', ') + ' and ' + out[out.length - 1] : out[0]) + '.';
 }
+// Anatomical names for the elevation moment arm, by plane: raising the arm is abduction in the frontal and
+// scapular planes, flexion in front, extension behind the trunk.
+function elevTerms() {
+  const p = st.p;
+  if (p <= -45) return { head: 'Ext / Flex', plus: 'extension', minus: 'flexion', vp: 'extends', vm: 'flexes' };
+  if (p < 50) return { head: 'Abd / Add', plus: 'abduction', minus: 'adduction', vp: 'abducts', vm: 'adducts' };
+  return { head: 'Flex / Ext', plus: 'flexion', minus: 'extension', vp: 'flexes', vm: 'extends' };
+}
 function describe(l) {
   if (l.ib) return describeScap(l);
-  const m = { e: MA(l, 'e'), p: st.e >= 15 ? MA(l, 'p') : null, r: MA(l, 'r') }, out = [];
-  if (Math.abs(m.e) >= 0.3) out.push(`${m.e > 0 ? 'elevates' : 'pulls down'} (${Math.abs(m.e).toFixed(1)} cm)`);
+  const m = { e: MA(l, 'e'), p: st.e >= 15 ? MA(l, 'p') : null, r: MA(l, 'r') }, out = [], t = elevTerms();
+  if (Math.abs(m.e) >= 0.3) out.push(`${m.e > 0 ? t.vp : t.vm} the shoulder (${Math.abs(m.e).toFixed(1)} cm)`);
   if (m.p !== null && Math.abs(m.p) >= 0.3) out.push(`${m.p > 0 ? 'horizontally adducts' : 'horizontally abducts'} (${Math.abs(m.p).toFixed(1)} cm)`);
   if (Math.abs(m.r) >= 0.3) out.push(`${m.r > 0 ? 'externally' : 'internally'} rotates (${Math.abs(m.r).toFixed(1)} cm)`);
   if (l.el) { const mk = MA(l, 'k'); if (Math.abs(mk) >= 0.3) out.push(`${mk > 0 ? 'flexes' : 'extends'} the elbow (${Math.abs(mk).toFixed(1)} cm)`); }
   if (!out.length) return 'In this position it has almost no leverage on the joint.';
   return 'In this position it ' + (out.length > 1 ? out.slice(0, -1).join(', ') + ' and ' + out[out.length - 1] : out[0]) + '.';
 }
-function planeName() {
-  const { p } = st;
-  return p <= -70 ? 'extension (behind the trunk)' : p <= -10 ? 'extension plane' : p < 15 ? 'abduction (frontal plane)' : p < 50 ? 'scaption' : p <= 105 ? 'flexion (sagittal plane)' : 'cross-body';
-}
 
 // ---------- update ----------
 function update() {
   ['p', 'e', 'r', 'k', 'roll'].forEach(k => { $(k).value = st[k]; $(k + 'o').textContent = st[k] + '°'; });
   $('poseBig').textContent = st.e + '°';
+  { const t = elevTerms(), th = $('thElev'); th.innerHTML = `<span class="t1">+ ${t.head.split(' / ')[0]}</span><span class="t2">− ${t.head.split(' / ')[1]}</span>`; th.title = `Moment arm: positive = ${t.plus}, negative = ${t.minus}`; }
   const q = rot(st.p, st.e, st.r), G = Gnow(), gd = G ? girdle(G) : null, gh = gd ? gd.gh : [0, 0, 0];
   // girdle: sliders show the angles in use; editable only when set by hand
   const ga = G || { ur: 0, pt: 0, ir: 0, ce: 0, cr: 0 };
@@ -323,10 +356,14 @@ function update() {
   placeBone(scapM, gd ? gd.qS : [0, 0, 0, 1], GEO.AC, gd ? gd.ac : GEO.AC);
   placeBone(clavM, gd ? gd.qC : [0, 0, 0, 1], GEO.SC, GEO.SC);
   arm.position.copy(T3(gh)); ctr.position.copy(T3(gh));
-  let sub = (st.e < 5 ? 'Arm by the side' : `Elevation in ${planeName()}${Math.abs(st.r) >= 5 ? `, ${Math.abs(st.r)}° ${st.r > 0 ? 'external' : 'internal'} rotation` : ''}`) + `; elbow ${st.k}°`;
+  const mv = movementName(st.p), rot_ = Math.abs(st.r) >= 1 ? `${Math.abs(st.r)}° ${st.r > 0 ? 'external' : 'internal'} rotation` : '';
+  $('pName').textContent = mv; $('eName').textContent = st.e < 1 ? 'arm by the side' : `${st.e}° ${mv}`;
+  $('rName').textContent = st.r === 0 ? 'neutral' : `${Math.abs(st.r)}° ${st.r > 0 ? 'ER' : 'IR'}`;
+  let sub = (st.e < 5 ? 'Arm by the side' : `${st.e}° ${mv}${rot_ ? ', ' + rot_ : ''}`) + `; elbow ${st.k}°`;
   if (G && st.e >= 5) sub += `. Glenohumeral ${Math.round(ghElevation(q, G))}°, scapula ${Math.round(ga.ur)}° upward rotation`;
   arm.quaternion.copy(toQ(q));
   foreG.quaternion.copy(toQ(elbowQ(EL, st.k)));
+  updatePlanes(q, gd);
   const sq = swim ? swimQ(st.roll) : [0, 0, 0, 1];
   body.quaternion.copy(toQ(sq)); body.position.copy(swim ? T3(qRot(sq, PIVOT.map(x => -x))) : new THREE.Vector3());
   water.visible = swim;
@@ -446,6 +483,9 @@ function setSwim(on) {
   place(); update();
 }
 $('swimBtn').onclick = () => setSwim(!swim);
+$('planeSet').addEventListener('click', e => { const b = e.target.closest('[data-pl]'); if (!b) return; planeOn[b.dataset.pl] = !planeOn[b.dataset.pl]; b.setAttribute('aria-pressed', planeOn[b.dataset.pl]); update(); });
+const segPick = (id, set) => $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; set(b.dataset.m); $(id).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); update(); });
+segPick('planeAt', m => { planeAt = m; }); segPick('planeOri', m => { planeOri = m; });
 $('skelMode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSkel(b.dataset.m); });
 $('chips').innerHTML = GROUPS.map(g => `<button class="chip" data-g="${g[0]}" aria-pressed="true"><span class="sw" style="background:var(--${g[0]})"></span>${g[1]}</button>`).join('');
 $('chips').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; shown[b.dataset.g] = !shown[b.dataset.g]; b.setAttribute('aria-pressed', shown[b.dataset.g]); update(); });

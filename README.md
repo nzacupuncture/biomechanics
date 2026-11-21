@@ -24,8 +24,12 @@ Good next requests once it's live:
 
 ## Using it
 
-- **Sliders** set the arm (plane of elevation from pure extension to cross-body, elevation, rotation)
-  and the elbow. Positions the shoulder can't reach (the arm through the trunk, or beyond its range,
+- **Planes**: switch on the sagittal, frontal and transverse planes, the scapular plane and the arm's own
+  plane of movement; put them through the body, the shoulder or the elbow, aligned to the trunk or turned
+  with the humerus. They roll with the body in Swimmer view.
+- **Sliders** set the arm: *direction of movement* (read out as extension, abduction, scaption, flexion
+  or horizontal adduction), *amount of movement* (e.g. "120° flexion") and rotation (ER / IR)
+  plus the elbow. Positions the shoulder can't reach (the arm through the trunk, or beyond its range,
   e.g. more than ~60° of extension) are refused with a short message.
 - **Scapula:** *Moves with the arm* (default) follows healthy scapulohumeral rhythm, so about a
   third of arm elevation happens at the scapula and the pose line shows the glenohumeral angle;
