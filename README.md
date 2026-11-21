@@ -55,6 +55,11 @@ Good next requests once it's live:
 
 ## Running it yourself
 
+Double-click **Open Biomechanics.command** in this folder: it starts a small local server and opens the
+app in your browser (keep its window open while you use it). Opening `app/index.html` straight from
+Finder doesn't work: browsers block a page opened from a file from loading its code and data, so you'd
+see an empty model (the page now says so). Or, in a terminal:
+
 ```bash
 npm test         # anatomy checks
 npm run serve    # then open http://localhost:8000

@@ -55,6 +55,16 @@
 </section>
 </main>
 <footer>Bone geometry: <a href="https://github.com/Z-Anatomy/Models-of-human-anatomy">Z-Anatomy, the libre 3D atlas of anatomy</a> (CC BY-SA 4.0), derived from BodyParts3D, The Database Center for Life Science (CC BY-SA 2.1 Japan). Meshes simplified, arm re-posed and attachment points derived for this tool. This tool is shared under CC BY-SA 4.0.</footer>
+<script>
+// Opened straight from Finder (file://): browsers block the app from loading its code and data, so say so
+// instead of showing an empty model.
+if (location.protocol === 'file:') addEventListener('DOMContentLoaded', () => {
+  const v = document.querySelector('.viewer'), m = document.createElement('div');
+  m.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:32px;text-align:center;font-size:16px;line-height:1.5;color:var(--ink)';
+  m.innerHTML = '<div><b>This page has been opened straight from a file, so the browser won\'t load the model.</b><br><br>Double-click <b>Open Biomechanics.command</b> in the project folder,<br>or use the website: <a href="https://nzacupuncture.github.io/biomechanics/">nzacupuncture.github.io/biomechanics</a></div>';
+  v.appendChild(m);
+});
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script type="module" src="js/main.js?v=dev"></script>
 </body>
